@@ -1,0 +1,10 @@
+node_modules
+dist
+.DS_Store
+*.vsix
+.vscode-testdist
+node_modules
+*.vsix
+.DS_Store
+plan.*
+TODOS.*

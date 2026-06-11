@@ -1,0 +1,7 @@
+src/**
+esbuild.js
+tsconfig.json
+.vscode/**
+plan.md
+TODOS.md
+node_modules/**

@@ -1,0 +1,59 @@
+{
+  "name": "lopilot",
+  "displayName": "Lopilot",
+  "description": "Local-first coding assistant extension scaffold for VS Code.",
+  "version": "0.0.1",
+  "publisher": "lopilot",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:lopilot.openChat",
+    "onCommand:lopilot.newSession",
+    "onCommand:lopilot.askAboutSelection"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "lopilot.openChat",
+        "title": "Lopilot: Open Chat",
+        "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.newSession",
+        "title": "Lopilot: New Session",
+        "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.askAboutSelection",
+        "title": "Lopilot: Ask About Selection",
+        "category": "Lopilot"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "lopilot.askAboutSelection",
+          "when": "editorHasSelection"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "lint": "tsc --noEmit -p ./tsconfig.json",
+    "compile": "node ./esbuild.js",
+    "watch": "node ./esbuild.js --watch",
+    "package": "node ./esbuild.js --production"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/vscode": "^1.100.0",
+    "esbuild": "^0.25.5",
+    "typescript": "^5.8.3"
+  }
+}
