@@ -35,36 +35,42 @@ const KNOWN_PROVIDERS = [
 const DEFAULT_HOSTS = ["localhost", "127.0.0.1"];
 
 /**
+ * Candidate health-check paths, ordered from most provider-specific to most
+ * generic. A provider is considered healthy if ANY of these returns an OK
+ * status. Ollama exposes `/api/tags` and an OpenAI-compatible `/v1/models`,
+ * LocalAI and other OpenAI-compatible servers expose `/v1/models`, and some
+ * servers expose a generic `/health`.
+ */
+const HEALTH_CHECK_PATHS = ["/api/tags", "/v1/models", "/health"];
+
+/**
  * Attempts to reach a provider endpoint and verify it's healthy.
- * Returns null if unreachable or unhealthy.
+ * Tries each candidate health path in turn and returns true as soon as one
+ * responds with an OK status. A non-OK HTTP status (e.g. 404) is treated the
+ * same as a failed attempt, so probing continues to the next path.
  */
 async function checkHealthAsync(
   baseUrl: string,
   timeoutMs: number = 5000,
 ): Promise<boolean> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
+  for (const path of HEALTH_CHECK_PATHS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      // Try /health endpoint first (generic)
-      const response = await fetch(`${baseUrl}/health`, {
+      const response = await fetch(`${baseUrl}${path}`, {
         method: "GET",
         signal: controller.signal,
       });
-      return response.ok;
+      if (response.ok) {
+        return true;
+      }
     } catch {
-      // Try /v1/models as fallback (OpenAI-compat)
-      const response = await fetch(`${baseUrl}/v1/models`, {
-        method: "GET",
-        signal: controller.signal,
-      });
-      return response.ok;
+      // Network error or timeout for this path; try the next candidate.
+    } finally {
+      clearTimeout(timeout);
     }
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timeout);
   }
+  return false;
 }
 
 /**
