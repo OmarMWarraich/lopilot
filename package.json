@@ -32,6 +32,21 @@
         "command": "lopilot.askAboutSelection",
         "title": "Lopilot: Ask About Selection",
         "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.discoverProviders",
+        "title": "Lopilot: Discover Local Providers",
+        "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.setActiveProvider",
+        "title": "Lopilot: Select Provider",
+        "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.enableRemoteProviders",
+        "title": "Lopilot: Enable Remote Providers",
+        "category": "Lopilot"
       }
     ],
     "menus": {

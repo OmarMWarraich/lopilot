@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { SessionManager } from './SessionManager';
+import { ProviderManager } from '../provider/ProviderManager';
 
 type WebviewMessage =
   | { type: 'ready' }
@@ -17,14 +18,19 @@ export class LopilotPanel {
   private constructor(
     panel: vscode.WebviewPanel,
     private readonly extensionUri: vscode.Uri,
-    private readonly sessionManager: SessionManager
+    private readonly sessionManager: SessionManager,
+    private readonly providerManager: ProviderManager
   ) {
     this.panel = panel;
     this.panel.webview.html = this.getHtml(this.panel.webview);
     this.registerListeners();
   }
 
-  public static render(extensionUri: vscode.Uri, sessionManager: SessionManager): LopilotPanel {
+  public static render(
+    extensionUri: vscode.Uri,
+    sessionManager: SessionManager,
+    providerManager: ProviderManager
+  ): LopilotPanel {
     if (LopilotPanel.currentPanel) {
       LopilotPanel.currentPanel.panel.reveal(vscode.ViewColumn.Beside);
       return LopilotPanel.currentPanel;
@@ -36,7 +42,7 @@ export class LopilotPanel {
       localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]
     });
 
-    LopilotPanel.currentPanel = new LopilotPanel(panel, extensionUri, sessionManager);
+    LopilotPanel.currentPanel = new LopilotPanel(panel, extensionUri, sessionManager, providerManager);
     return LopilotPanel.currentPanel;
   }
 
@@ -47,7 +53,15 @@ export class LopilotPanel {
 
     await this.panel.webview.postMessage({
       type: 'state',
-      payload: this.sessionManager.getViewModel()
+      payload: {
+        chat: this.sessionManager.getViewModel(),
+        provider: {
+          state: this.providerManager.getLifecycleState(),
+          stateDescription: this.providerManager.getStateDescription(),
+          canSendRequest: this.providerManager.canSendRequest(),
+          activeProvider: this.providerManager.getActiveProvider()
+        }
+      }
     });
   }
 
@@ -78,6 +92,26 @@ export class LopilotPanel {
             const prompt = message.prompt.trim();
 
             if (!prompt) {
+              return;
+            }
+
+            if (!this.providerManager.canSendRequest()) {
+              const lifecycleState = this.providerManager.getLifecycleState();
+              let blockedMessage: string;
+              switch (lifecycleState) {
+                case 'local-available':
+                  blockedMessage = 'A local provider was discovered but not yet selected. Use "Lopilot: Select Provider" to activate it.';
+                  break;
+                case 'remote-configured-blocked':
+                  blockedMessage = 'A remote provider is configured but remote requests are not yet enabled. Use "Lopilot: Enable Remote Providers" to opt in.';
+                  break;
+                case 'no-provider':
+                default:
+                  blockedMessage = 'No provider is configured. Use "Lopilot: Select Provider" to set up a local or remote provider.';
+                  break;
+              }
+              await this.sessionManager.appendAssistantMessage(blockedMessage);
+              await this.refresh();
               return;
             }
 

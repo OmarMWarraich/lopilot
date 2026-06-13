@@ -76,6 +76,24 @@ textarea {
   background: var(--vscode-button-background);
 }
 
+.badge--success {
+  border-color: var(--vscode-testing-iconPassed);
+  color: var(--vscode-testing-iconPassed);
+  background: rgba(76, 184, 96, 0.15);
+}
+
+.badge--warning {
+  border-color: var(--vscode-editorWarning-foreground, #dca157);
+  color: var(--vscode-editorWarning-foreground, #dca157);
+  background: rgba(220, 161, 87, 0.15);
+}
+
+.badge--error {
+  border-color: var(--vscode-errorForeground);
+  color: var(--vscode-errorForeground);
+  background: rgba(241, 76, 76, 0.15);
+}
+
 .layout {
   display: grid;
   flex: 1;

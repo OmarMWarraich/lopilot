@@ -8,11 +8,23 @@
   const promptInput = document.getElementById('prompt-input');
   const newSessionButton = document.getElementById('new-session');
 
-  let state = vscode.getState() || {
-    activeSessionId: null,
-    activeSession: null,
-    sessions: []
-  };
+  // Migrate old state shapes: pre-provider builds stored sessions at the top level
+  // without a `chat` key. Reset to defaults if the shape is unrecognised.
+  const _persisted = vscode.getState();
+  const _isLegacyShape = _persisted && !_persisted.chat;
+  let state = (!_persisted || _isLegacyShape) ? {
+    chat: {
+      activeSessionId: null,
+      activeSession: null,
+      sessions: []
+    },
+    provider: {
+      state: 'no-provider',
+      stateDescription: 'No provider configured',
+      canSendRequest: false,
+      activeProvider: null
+    }
+  } : _persisted;
 
   newSessionButton.addEventListener('click', () => {
     vscode.postMessage({ type: 'newSession' });
@@ -59,7 +71,7 @@
   function renderSessions() {
     sessionList.replaceChildren();
 
-    if (!state.sessions.length) {
+    if (!state.chat.sessions.length) {
       const empty = document.createElement('div');
       empty.className = 'empty-state';
       empty.textContent = 'No sessions yet. Start a new prompt to create one.';
@@ -67,11 +79,11 @@
       return;
     }
 
-    state.sessions.forEach((session) => {
+    state.chat.sessions.forEach((session) => {
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'session-card';
-      if (session.id === state.activeSessionId) {
+      if (session.id === state.chat.activeSessionId) {
         card.classList.add('is-active');
       }
 
@@ -97,25 +109,29 @@
   function renderConversationMeta() {
     conversationMeta.replaceChildren();
 
-    if (!state.activeSession) {
+    if (!state.chat.activeSession) {
       conversationMeta.textContent = 'Create or select a session to begin.';
       return;
     }
 
     const title = document.createElement('strong');
-    title.textContent = state.activeSession.title;
+    title.textContent = state.chat.activeSession.title;
 
     const meta = document.createElement('span');
     meta.className = 'composer__hint';
-    meta.textContent = `Updated ${formatTimestamp(state.activeSession.updatedAt)}`;
+    meta.textContent = `Updated ${formatTimestamp(state.chat.activeSession.updatedAt)}`;
 
-    conversationMeta.append(title, meta);
+    const providerBadge = document.createElement('span');
+    providerBadge.className = `badge badge--${getProviderBadgeClass(state.provider.state)}`;
+    providerBadge.textContent = state.provider.stateDescription;
+
+    conversationMeta.append(title, meta, providerBadge);
   }
 
   function renderMessages() {
     messagesContainer.replaceChildren();
 
-    if (!state.activeSession || !state.activeSession.messages.length) {
+    if (!state.chat.activeSession || !state.chat.activeSession.messages.length) {
       const empty = document.createElement('div');
       empty.className = 'empty-state';
       empty.textContent = 'This session is ready. Ask a question to exercise the chat plumbing.';
@@ -123,7 +139,7 @@
       return;
     }
 
-    state.activeSession.messages.forEach((message) => {
+    state.chat.activeSession.messages.forEach((message) => {
       const bubble = document.createElement('article');
       bubble.className = `message message--${message.role}`;
 
@@ -149,5 +165,18 @@
       hour: 'numeric',
       minute: '2-digit'
     }).format(date);
+  }
+
+  function getProviderBadgeClass(providerState) {
+    switch (providerState) {
+      case 'local-configured':
+      case 'remote-enabled':
+        return 'success';
+      case 'local-available':
+      case 'remote-configured-blocked':
+        return 'warning';
+      default:
+        return 'error';
+    }
   }
 })();
