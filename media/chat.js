@@ -8,7 +8,11 @@
   const promptInput = document.getElementById('prompt-input');
   const newSessionButton = document.getElementById('new-session');
 
-  let state = vscode.getState() || {
+  // Migrate old state shapes: pre-provider builds stored sessions at the top level
+  // without a `chat` key. Reset to defaults if the shape is unrecognised.
+  const _persisted = vscode.getState();
+  const _isLegacyShape = _persisted && !_persisted.chat;
+  let state = (!_persisted || _isLegacyShape) ? {
     chat: {
       activeSessionId: null,
       activeSession: null,
@@ -20,7 +24,7 @@
       canSendRequest: false,
       activeProvider: null
     }
-  };
+  } : _persisted;
 
   newSessionButton.addEventListener('click', () => {
     vscode.postMessage({ type: 'newSession' });

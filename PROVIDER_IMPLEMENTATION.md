@@ -98,7 +98,7 @@ The derivation logic in `deriveProviderLifecycleState()` follows these rules:
 2. **lopilot.setActiveProvider** — Quick picker to select from available providers
    - Lists discovered local, configured local, and configured remote providers
    - Tests endpoint health before activation
-   - Automatically enables remote requests if remote provider is selected
+   - Remote requests remain blocked until the user explicitly runs `lopilot.enableRemoteProviders`
 
 3. **lopilot.enableRemoteProviders** — Explicit opt-in for remote requests
    - Shows warning: "Enabling remote providers will allow sending code to remote servers"
@@ -110,11 +110,9 @@ The derivation logic in `deriveProviderLifecycleState()` follows these rules:
 The status bar item now displays:
 
 - **Text:** "$(comment-discussion) Lopilot"
-- **Badge:** Dynamic provider state
-  - Green badge ("local-configured" / "remote-enabled") → ready to use
-  - Yellow badge ("local-available" / "remote-configured-blocked") → needs config
-  - Red badge ("no-provider") → setup required
-- **Tooltip:** Full state description (e.g., "Using local provider")
+- **Tooltip:** Full state description (e.g., "Using local provider"), refreshed after every state-changing operation (discovery, provider selection, remote enablement)
+
+> **Note:** Color-coded badge indicators are planned as future work.
 
 ### Chat Panel Integration
 

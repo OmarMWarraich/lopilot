@@ -10,15 +10,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   await sessionManager.ensureSession();
 
   const providerManager = new ProviderManager(context.workspaceState);
-  // Trigger initial discovery
-  void providerManager.discoverLocal();
 
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBarItem.name = 'Lopilot';
   statusBarItem.command = 'lopilot.openChat';
   statusBarItem.text = '$(comment-discussion) Lopilot';
-  statusBarItem.tooltip = `Lopilot - ${providerManager.getStateDescription()}`;
   statusBarItem.show();
+
+  const updateStatusBar = () => {
+    statusBarItem.tooltip = `Lopilot - ${providerManager.getStateDescription()}`;
+  };
+
+  updateStatusBar();
+
+  // Trigger initial discovery and refresh the status bar once it completes
+  void providerManager.discoverLocal().then(() => updateStatusBar());
 
   context.subscriptions.push(
     statusBarItem,
@@ -64,6 +70,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand('lopilot.discoverProviders', async () => {
       const discovered = await providerManager.discoverLocal();
+      updateStatusBar();
       
       if (discovered.length === 0) {
         void vscode.window.showWarningMessage('No local providers found. Install Ollama or LocalAI to use local models.');
@@ -91,8 +98,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
 
       if (selected) {
-        await providerManager.setActiveProvider(selected.provider.id);
-        void vscode.window.showInformationMessage(`Selected provider: ${selected.label}`);
+        const success = await providerManager.setActiveProvider(selected.provider.id);
+        updateStatusBar();
+        if (success) {
+          void vscode.window.showInformationMessage(`Selected provider: ${selected.label}`);
+        } else {
+          void vscode.window.showErrorMessage(`Could not activate "${selected.label}". The endpoint may be unreachable.`);
+        }
       }
     }),
     vscode.commands.registerCommand('lopilot.enableRemoteProviders', async () => {
@@ -108,8 +120,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
 
       if (confirmed === 'Enable') {
-        await providerManager.enableRemote();
-        void vscode.window.showInformationMessage('Remote providers are now enabled.');
+        const success = await providerManager.enableRemote();
+        updateStatusBar();
+        if (success) {
+          void vscode.window.showInformationMessage('Remote providers are now enabled.');
+        } else {
+          void vscode.window.showErrorMessage('Could not enable remote providers. Check that a remote endpoint is reachable.');
+        }
       }
     })
   );

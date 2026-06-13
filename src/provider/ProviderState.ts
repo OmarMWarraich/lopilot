@@ -112,8 +112,8 @@ export function deriveProviderLifecycleState(
         (p) => p.id === config.activeProviderId,
       );
       if (isLocalDiscovered) {
-        // Auto-configured local is still "local-available" until explicitly set
-        return "local-available";
+        // User has actively selected a discovered local provider — treat as configured
+        return "local-configured";
       }
 
       // It's a remote provider
@@ -149,11 +149,12 @@ export function deriveProviderLifecycleState(
 export function canSendRequest(config: ProviderConfig): boolean {
   switch (config.lifecycleState) {
     case "local-configured":
-      return true;
+      return !!config.activeProviderId;
     case "remote-enabled":
-      return true;
+      return !!config.activeProviderId;
     case "local-available":
-      return true;
+      // Provider is visible but not yet selected — user must configure
+      return false;
     case "remote-configured-blocked":
       return false;
     case "no-provider":

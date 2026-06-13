@@ -96,9 +96,21 @@ export class LopilotPanel {
             }
 
             if (!this.providerManager.canSendRequest()) {
-              await this.sessionManager.appendAssistantMessage(
-                'No provider is configured. Use "Lopilot: Select Provider" command to set up a local or remote provider.'
-              );
+              const lifecycleState = this.providerManager.getLifecycleState();
+              let blockedMessage: string;
+              switch (lifecycleState) {
+                case 'local-available':
+                  blockedMessage = 'A local provider was discovered but not yet selected. Use "Lopilot: Select Provider" to activate it.';
+                  break;
+                case 'remote-configured-blocked':
+                  blockedMessage = 'A remote provider is configured but remote requests are not yet enabled. Use "Lopilot: Enable Remote Providers" to opt in.';
+                  break;
+                case 'no-provider':
+                default:
+                  blockedMessage = 'No provider is configured. Use "Lopilot: Select Provider" to set up a local or remote provider.';
+                  break;
+              }
+              await this.sessionManager.appendAssistantMessage(blockedMessage);
               await this.refresh();
               return;
             }

@@ -42,17 +42,15 @@ async function checkHealthAsync(
   baseUrl: string,
   timeoutMs: number = 5000,
 ): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
     try {
       // Try /health endpoint first (generic)
       const response = await fetch(`${baseUrl}/health`, {
         method: "GET",
         signal: controller.signal,
       });
-      clearTimeout(timeout);
       return response.ok;
     } catch {
       // Try /v1/models as fallback (OpenAI-compat)
@@ -60,11 +58,12 @@ async function checkHealthAsync(
         method: "GET",
         signal: controller.signal,
       });
-      clearTimeout(timeout);
       return response.ok;
     }
   } catch {
     return false;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

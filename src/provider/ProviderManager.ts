@@ -67,7 +67,12 @@ export class ProviderManager {
    * Returns the current provider configuration.
    */
   public getConfig(): Readonly<ProviderConfig> {
-    return Object.freeze({ ...this.config });
+    return Object.freeze({
+      ...this.config,
+      discoveredLocal: [...this.config.discoveredLocal],
+      configuredLocal: [...this.config.configuredLocal],
+      configuredRemote: [...this.config.configuredRemote],
+    });
   }
 
   /**
@@ -118,7 +123,8 @@ export class ProviderManager {
     options?: DiscoveryOptions,
   ): Promise<ProviderEndpoint[]> {
     if (this.isDiscovering) {
-      return [];
+      // Return cached results so callers can distinguish "scan in progress" from "none found"
+      return [...this.config.discoveredLocal];
     }
 
     this.isDiscovering = true;
@@ -238,11 +244,6 @@ export class ProviderManager {
     }
 
     this.config.activeProviderId = providerId;
-
-    // If activating a remote provider, enable remote requests
-    if (this.config.configuredRemote.some((p) => p.id === providerId)) {
-      this.config.remoteRequestsAllowed = true;
-    }
 
     this.config.lifecycleState = deriveProviderLifecycleState(this.config);
 
