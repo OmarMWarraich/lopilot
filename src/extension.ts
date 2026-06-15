@@ -128,6 +128,50 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           void vscode.window.showErrorMessage('Could not enable remote providers. Check that a remote endpoint is reachable.');
         }
       }
+    }),
+    vscode.commands.registerCommand('lopilot.selectModel', async () => {
+      const provider = providerManager.getActiveProvider();
+      if (!provider) {
+        void vscode.window.showWarningMessage('No active provider. Use "Lopilot: Select Provider" first.');
+        return;
+      }
+
+      if (!providerManager.canSendRequest()) {
+        const lifecycleState = providerManager.getLifecycleState();
+        if (lifecycleState === 'remote-configured-blocked') {
+          void vscode.window.showWarningMessage('Remote provider requests are blocked. Use "Lopilot: Enable Remote Providers" to opt in.');
+        } else {
+          void vscode.window.showWarningMessage('Provider is not ready. Use "Lopilot: Select Provider" first.');
+        }
+        return;
+      }
+
+      const models = await providerManager.listModels();
+
+      if (models.length === 0) {
+        if (provider.type !== 'ollama') {
+          void vscode.window.showWarningMessage(`Model selection is currently supported only for Ollama providers (active: ${provider.name}).`);
+        } else {
+          void vscode.window.showWarningMessage(`No models found on ${provider.name}. Pull a model with \`ollama pull <model>\`.`);
+        }
+        return;
+      }
+
+      const activeModelId = providerManager.getActiveModelId();
+      const selected = await vscode.window.showQuickPick(
+        models.map((m) => ({
+          label: m.displayName,
+          description: [m.quantization, m.maxTokens ? `~${m.maxTokens} tokens (est.)` : null].filter(Boolean).join(' · '),
+          picked: m.id === activeModelId,
+          model: m
+        })),
+        { placeHolder: 'Select a model' }
+      );
+
+      if (selected) {
+        await providerManager.setActiveModelId(selected.model.id);
+        void vscode.window.showInformationMessage(`Active model: ${selected.label}`);
+      }
     })
   );
 }

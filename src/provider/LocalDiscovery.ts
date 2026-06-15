@@ -3,6 +3,7 @@
  * on standard ports and user-configured addresses.
  */
 
+import { ModelMetadata } from "../adapter";
 import { ProviderEndpoint } from "./ProviderState";
 
 export interface DiscoveryOptions {
@@ -35,36 +36,42 @@ const KNOWN_PROVIDERS = [
 const DEFAULT_HOSTS = ["localhost", "127.0.0.1"];
 
 /**
+ * Candidate health-check paths, ordered from most provider-specific to most
+ * generic. A provider is considered healthy if ANY of these returns an OK
+ * status. Ollama exposes `/api/tags` and an OpenAI-compatible `/v1/models`,
+ * LocalAI and other OpenAI-compatible servers expose `/v1/models`, and some
+ * servers expose a generic `/health`.
+ */
+const HEALTH_CHECK_PATHS = ["/api/tags", "/v1/models", "/health"];
+
+/**
  * Attempts to reach a provider endpoint and verify it's healthy.
- * Returns null if unreachable or unhealthy.
+ * Tries each candidate health path in turn and returns true as soon as one
+ * responds with an OK status. A non-OK HTTP status (e.g. 404) is treated the
+ * same as a failed attempt, so probing continues to the next path.
  */
 async function checkHealthAsync(
   baseUrl: string,
   timeoutMs: number = 5000,
 ): Promise<boolean> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
+  for (const path of HEALTH_CHECK_PATHS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      // Try /health endpoint first (generic)
-      const response = await fetch(`${baseUrl}/health`, {
+      const response = await fetch(`${baseUrl}${path}`, {
         method: "GET",
         signal: controller.signal,
       });
-      return response.ok;
+      if (response.ok) {
+        return true;
+      }
     } catch {
-      // Try /v1/models as fallback (OpenAI-compat)
-      const response = await fetch(`${baseUrl}/v1/models`, {
-        method: "GET",
-        signal: controller.signal,
-      });
-      return response.ok;
+      // Network error or timeout for this path; try the next candidate.
+    } finally {
+      clearTimeout(timeout);
     }
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timeout);
   }
+  return false;
 }
 
 /**
@@ -161,4 +168,77 @@ export async function testEndpoint(
   timeoutMs: number = 5000,
 ): Promise<boolean> {
   return checkHealthAsync(baseUrl, timeoutMs);
+}
+
+/** Shape of a single model entry returned by Ollama's GET /api/tags */
+interface OllamaTagEntry {
+  name: string;
+  details?: {
+    parameter_size?: string;
+    quantization_level?: string;
+  };
+}
+
+/** Shape of the Ollama GET /api/tags response body */
+interface OllamaTagsResponse {
+  models: OllamaTagEntry[];
+}
+
+/**
+ * Fetches the list of models currently available on an Ollama instance and
+ * maps them to the shared {@link ModelMetadata} shape.
+ *
+ * @param baseUrl  Base URL of the Ollama endpoint, e.g. `http://localhost:11434`
+ * @param timeoutMs  Request timeout in milliseconds (default 5 000)
+ * @returns  Array of model metadata, or an empty array if the endpoint is
+ *           unreachable or returns an unexpected payload.
+ */
+export async function fetchOllamaModels(
+  baseUrl: string,
+  timeoutMs: number = 5000,
+): Promise<ModelMetadata[]> {
+  try {
+    const response = await fetch(`${baseUrl}/api/tags`, {
+      method: "GET",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const body = (await response.json()) as OllamaTagsResponse;
+
+    if (!Array.isArray(body.models)) {
+      return [];
+    }
+
+    return body.models.map((entry): ModelMetadata => {
+      const quantization = entry.details?.quantization_level ?? null;
+      const paramSize = entry.details?.parameter_size ?? null;
+
+      // Derive a rough maxTokens estimate from the parameter size string
+      // (e.g. "22.1B" → 8192, "4.21B" → 4096).  Ollama does not expose this
+      // directly; callers may override it once a proper model card is available.
+      let maxTokens: number | null = null;
+      if (paramSize) {
+        const billions = parseFloat(paramSize);
+        if (!isNaN(billions)) {
+          maxTokens = billions >= 10 ? 8192 : 4096;
+        }
+      }
+
+      return {
+        id: entry.name,
+        displayName: entry.name,
+        quantization,
+        device: null,
+        maxTokens,
+        contextWindow: null,
+        license: null,
+      };
+    });
+  } catch {
+    return [];
+  }
 }

@@ -65,6 +65,9 @@ export interface ProviderConfig {
   /** Currently active provider (if any) */
   activeProviderId: string | null;
 
+  /** Currently active model id within the active provider (if any) */
+  activeModelId: string | null;
+
   /** Whether user has explicitly opted into remote requests */
   remoteRequestsAllowed: boolean;
 
@@ -81,6 +84,7 @@ export const INITIAL_PROVIDER_CONFIG: ProviderConfig = {
   configuredLocal: [],
   configuredRemote: [],
   activeProviderId: null,
+  activeModelId: null,
   remoteRequestsAllowed: false,
 };
 

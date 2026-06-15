@@ -125,6 +125,57 @@ export class SessionManager {
     return this.appendMessage('assistant', content);
   }
 
+  /**
+   * Creates an empty assistant message as a streaming placeholder.
+   * Call {@link finalizeStreamingMessage} once the stream completes to
+   * persist the accumulated content.
+   *
+   * @returns The session and the id of the placeholder message.
+   */
+  public async beginAssistantStream(): Promise<{ session: ChatSession; messageId: string }> {
+    const session = await this.ensureSession();
+    const now = timestamp();
+    const message = createMessage('assistant', '', now);
+
+    const activeSession = this.state.sessions.find((s) => s.id === session.id);
+    if (!activeSession) {
+      return { session, messageId: message.id };
+    }
+
+    activeSession.messages.push(message);
+    activeSession.updatedAt = now;
+    this.state.activeSessionId = activeSession.id;
+
+    await this.save();
+    return { session: activeSession, messageId: message.id };
+  }
+
+  /**
+   * Overwrites the content of the streaming placeholder message created by
+   * {@link beginAssistantStream} and persists the session.
+   */
+  public async finalizeStreamingMessage(messageId: string, content: string): Promise<void> {
+    const session = this.getActiveSession();
+    if (!session) {
+      return;
+    }
+
+    const activeSession = this.state.sessions.find((s) => s.id === session.id);
+    if (!activeSession) {
+      return;
+    }
+
+    const message = activeSession.messages.find((m) => m.id === messageId);
+    if (!message) {
+      return;
+    }
+
+    message.content = content.trim();
+    activeSession.updatedAt = timestamp();
+
+    await this.save();
+  }
+
   private async appendMessage(role: ChatRole, content: string): Promise<ChatSession> {
     const trimmedContent = content.trim();
     const session = await this.ensureSession();

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 
+import { streamOllamaChat } from '../adapter/OllamaConnector';
 import { SessionManager } from './SessionManager';
 import { ProviderManager } from '../provider/ProviderManager';
 
@@ -116,9 +117,67 @@ export class LopilotPanel {
             }
 
             await this.sessionManager.appendUserMessage(prompt);
-            await this.sessionManager.appendAssistantMessage(
-              'The chat scaffold is wired, but no model adapter is connected yet. Next steps are provider selection, streaming responses, and repo-aware retrieval.'
-            );
+            // Optimistically update the webview so the user's message appears immediately
+            await this.refresh();
+
+            const provider = this.providerManager.getActiveProvider();
+
+            if (!provider || provider.type !== 'ollama') {
+              await this.sessionManager.appendAssistantMessage(
+                'The active provider does not support streaming yet. Select an Ollama provider via "Lopilot: Select Provider".'
+              );
+              await this.refresh();
+              return;
+            }
+
+            // Resolve the model to use and validate active model id
+            const models = await this.providerManager.listModels();
+            if (models.length === 0) {
+              await this.sessionManager.appendAssistantMessage(
+                'No models found on the active Ollama instance. Pull a model with `ollama pull <model>` and try again.'
+              );
+              await this.refresh();
+              return;
+            }
+
+            let modelId = this.providerManager.getActiveModelId();
+            // If the stored active model is missing on the instance, fall back to the first available model
+            if (!modelId || !models.some((m) => m.id === modelId)) {
+              modelId = models[0].id;
+              await this.providerManager.setActiveModelId(modelId);
+            }
+
+            // Build message history for context
+            const activeSession = this.sessionManager.getActiveSession();
+            const history = (activeSession?.messages ?? []).map((m) => ({
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+            }));
+
+            // Create a streaming placeholder and signal start to the webview
+            const { messageId } = await this.sessionManager.beginAssistantStream();
+            await this.panel.webview.postMessage({ type: 'stream.start', messageId });
+
+            let accumulated = '';
+            try {
+              accumulated = await streamOllamaChat({
+                baseUrl: provider.baseUrl,
+                model: modelId,
+                messages: history,
+                onDelta: (delta) => {
+                  void this.panel.webview.postMessage({ type: 'stream.delta', messageId, delta });
+                },
+              });
+            } catch (err) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              await this.panel.webview.postMessage({ type: 'stream.error', messageId, error: errMsg });
+              await this.sessionManager.finalizeStreamingMessage(messageId, `Error: ${errMsg}`);
+              await this.refresh();
+              return;
+            }
+
+            await this.sessionManager.finalizeStreamingMessage(messageId, accumulated);
+            await this.panel.webview.postMessage({ type: 'stream.done', messageId });
             await this.refresh();
             return;
           }
