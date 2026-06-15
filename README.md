@@ -80,6 +80,7 @@ Selecting a remote provider never enables remote requests on its own; the user m
 - Provider resolution lives in `src/provider/` (`ProviderState.ts`, `LocalDiscovery.ts`, `ProviderManager.ts`).
 - The typed model-adapter client lives in `src/adapter/` (`ModelAdapterClient.ts`, `types.ts`) and targets the contract documented in `docs/adapter-contract.md`. Module boundaries are described in `docs/module-boundaries.md`.
 - Privacy guarantees for request-scoped code context, metadata retention, remote consent, and future audit logs are documented in `docs/privacy-rules.md`.
+- Approval checkpoint flows for branch creation, side-effecting tests, PR creation, push, and merge are documented in `docs/approval-checkpoints.md`.
 
 ## Known limitations & next steps
 - Chat streaming works for Ollama via the native connector; the versioned ModelAdapterClient is not wired into the chat panel yet.

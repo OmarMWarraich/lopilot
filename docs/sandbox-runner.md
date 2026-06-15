@@ -18,6 +18,8 @@ The sandbox runner is the shared execution boundary for tests and future agent a
 - If any required checkpoint is rejected or dismissed, the command is not spawned and the result status is `rejected`.
 - Cancellation before or during execution returns `cancelled`; timeout returns `timeout`.
 
+Detailed approval flows for branch creation, side-effecting tests, PR creation, push, and merge actions are documented in `approval-checkpoints.md`.
+
 ## Execution Boundary
 
 Commands run through `child_process.spawn` with `shell: false`, a required working directory, bounded stdout/stderr capture, and a default timeout. The runner returns command summaries and redacted-friendly structured results suitable for future audit logging.

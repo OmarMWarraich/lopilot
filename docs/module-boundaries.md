@@ -46,6 +46,7 @@ This document defines the extension module boundaries, dependency rules, and int
 - Delegates execution to sandboxed runners and records audit events.
 - Stores audit records according to the privacy rules, excluding raw code, full prompts, secrets, and unredacted terminal output by default.
 - Provides the sandbox runner abstraction for tests and agent commands, requiring explicit approval checkpoints before repository mutations.
+- Defines action-specific approval flows for branch creation, side-effecting tests, PR creation, push, and merge operations.
 
 ### Provider
 
