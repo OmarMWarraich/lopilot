@@ -16,6 +16,8 @@ The shared context pipeline gathers bounded workspace context for features that 
 
 The pipeline applies conservative character limits before context reaches a provider. It is designed to be reused by chat, inline completions, review, and agent workflows.
 
+Context bundles are request-scoped and must not be persisted by the pipeline. See `privacy-rules.md` for persistence and remote-transfer guarantees.
+
 ## Current Integration
 
 `LopilotPanel` builds a context bundle immediately before streaming a chat response. The bundle is sent as a system message before the conversation history in the Ollama `/api/chat` request.

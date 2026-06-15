@@ -44,6 +44,7 @@ This document defines the extension module boundaries, dependency rules, and int
 
 - Coordinates repository-scoped actions under approval.
 - Delegates execution to sandboxed runners and records audit events.
+- Stores audit records according to the privacy rules, excluding raw code, full prompts, secrets, and unredacted terminal output by default.
 
 ### Provider
 
@@ -56,6 +57,7 @@ This document defines the extension module boundaries, dependency rules, and int
 - Collects and normalizes editor, workspace, and conversation context.
 - Produces reusable context payloads for completions, chat, review, and agent flows.
 - Owns shared context size limits so providers receive bounded current-file, selection, neighboring-file, repository, and conversation inputs.
+- Keeps generated context bundles request-scoped unless the user explicitly persists content through a feature such as chat.
 
 ### Adapter
 
