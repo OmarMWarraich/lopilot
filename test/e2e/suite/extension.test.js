@@ -1,0 +1,18 @@
+const assert = require('node:assert/strict');
+const vscode = require('vscode');
+
+suite('Lopilot E2E smoke suite', () => {
+  test('activates the extension and registers baseline commands with mocks enabled', async () => {
+    assert.equal(process.env.LOPILOT_E2E_MOCKS, '1');
+
+    const extension = vscode.extensions.getExtension('lopilot.lopilot');
+    assert.ok(extension, 'Expected the Lopilot extension to be available in the Extension Development Host.');
+
+    await extension.activate();
+
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('lopilot.openChat'));
+    assert.ok(commands.includes('lopilot.askAboutSelection'));
+    assert.ok(commands.includes('lopilot.selectModel'));
+  });
+});
