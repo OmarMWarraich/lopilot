@@ -13,6 +13,8 @@ Every high-risk action follows the same sequence:
 5. If any checkpoint is rejected or dismissed, the runner returns `rejected` and must not spawn the command.
 6. Record only the approval decision, command summary, relative paths, timestamps, and execution result in the future audit log.
 
+Note: `SandboxRunner` prepends required `repository-mutation` and `test-execution` checkpoints when applicable unless you provide checkpoints with those ids. Provide your own checkpoints with those ids to customize `title`/`detail` and avoid duplicate prompts.
+
 ## Branch Creation
 
 Branch creation changes repository state and requires approval.
@@ -35,12 +37,11 @@ The command must not run if the branch name is empty, ambiguous, or hidden from 
 
 Read-only tests can run without modal approval, but tests that write snapshots, update fixtures, start services, run migrations, modify generated files, or alter repository state require approval.
 
-Required checkpoint:
+Recommended checkpoint (override the runner default `test-execution` checkpoint by using the same id):
 
-- `id`: `test-side-effects`
+- `id`: `test-execution`
 - `risk`: `medium`
 - `detail`: test command, known write targets, generated output paths, service ports, and cleanup behavior.
-
 Runner request requirements:
 
 - `kind`: `test`
