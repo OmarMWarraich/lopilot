@@ -88,6 +88,50 @@ export const INITIAL_PROVIDER_CONFIG: ProviderConfig = {
   remoteRequestsAllowed: false,
 };
 
+function findActiveProvider(
+  config: Omit<ProviderConfig, "lifecycleState">,
+): ProviderEndpoint | null {
+  if (!config.activeProviderId) {
+    return null;
+  }
+
+  return (
+    [
+      ...config.configuredLocal,
+      ...config.discoveredLocal,
+      ...config.configuredRemote,
+    ].find((provider) => provider.id === config.activeProviderId) ?? null
+  );
+}
+
+function hasLocalProvider(config: Omit<ProviderConfig, "lifecycleState">): boolean {
+  return config.configuredLocal.length > 0 || config.discoveredLocal.length > 0;
+}
+
+function isActiveLocalProvider(
+  config: Omit<ProviderConfig, "lifecycleState">,
+): boolean {
+  if (!config.activeProviderId) {
+    return false;
+  }
+
+  return [...config.configuredLocal, ...config.discoveredLocal].some(
+    (provider) => provider.id === config.activeProviderId,
+  );
+}
+
+function isActiveRemoteProvider(
+  config: Omit<ProviderConfig, "lifecycleState">,
+): boolean {
+  if (!config.activeProviderId) {
+    return false;
+  }
+
+  return config.configuredRemote.some(
+    (provider) => provider.id === config.activeProviderId,
+  );
+}
+
 /**
  * Derives the lifecycle state from the configuration.
  * Follows local-first preference and explicit opt-in rules.
@@ -95,48 +139,29 @@ export const INITIAL_PROVIDER_CONFIG: ProviderConfig = {
 export function deriveProviderLifecycleState(
   config: Omit<ProviderConfig, "lifecycleState">,
 ): ProviderLifecycleState {
-  // Prefer local-configured
-  if (config.activeProviderId) {
-    const active = [
-      ...config.configuredLocal,
-      ...config.discoveredLocal,
-      ...config.configuredRemote,
-    ].find((p) => p.id === config.activeProviderId);
+  const activeProvider = findActiveProvider(config);
 
-    if (active) {
-      // Determine the state based on the active provider type
-      const isLocalConfigured = config.configuredLocal.some(
-        (p) => p.id === config.activeProviderId,
-      );
-      if (isLocalConfigured) {
-        return "local-configured";
-      }
-
-      const isLocalDiscovered = config.discoveredLocal.some(
-        (p) => p.id === config.activeProviderId,
-      );
-      if (isLocalDiscovered) {
-        // User has actively selected a discovered local provider — treat as configured
-        return "local-configured";
-      }
-
-      // It's a remote provider
-      return config.remoteRequestsAllowed
-        ? "remote-enabled"
-        : "remote-configured-blocked";
-    }
+  if (activeProvider && isActiveLocalProvider(config)) {
+    return "local-configured";
   }
 
-  // Check if local options are available
-  if (config.configuredLocal.length > 0) {
+  if (
+    activeProvider &&
+    isActiveRemoteProvider(config) &&
+    config.remoteRequestsAllowed
+  ) {
+    return "remote-enabled";
+  }
+
+  // Local-first: available local providers take precedence over a blocked remote.
+  if (hasLocalProvider(config)) {
     return "local-available";
   }
 
-  if (config.discoveredLocal.length > 0) {
-    return "local-available";
+  if (activeProvider && isActiveRemoteProvider(config)) {
+    return "remote-configured-blocked";
   }
 
-  // Check if remote options are available
   if (config.configuredRemote.length > 0) {
     return config.remoteRequestsAllowed
       ? "remote-enabled"
@@ -153,9 +178,9 @@ export function deriveProviderLifecycleState(
 export function canSendRequest(config: ProviderConfig): boolean {
   switch (config.lifecycleState) {
     case "local-configured":
-      return !!config.activeProviderId;
+      return isActiveLocalProvider(config);
     case "remote-enabled":
-      return !!config.activeProviderId;
+      return config.remoteRequestsAllowed && isActiveRemoteProvider(config);
     case "local-available":
       // Provider is visible but not yet selected — user must configure
       return false;

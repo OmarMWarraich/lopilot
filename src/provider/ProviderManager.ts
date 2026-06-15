@@ -66,6 +66,13 @@ export class ProviderManager {
     await this.storage.update(STORAGE_KEY, this.config);
   }
 
+  private hasLocalProvider(): boolean {
+    return (
+      this.config.configuredLocal.length > 0 ||
+      this.config.discoveredLocal.length > 0
+    );
+  }
+
   /**
    * Returns the current provider configuration.
    */
@@ -224,7 +231,7 @@ export class ProviderManager {
   /**
    * Activates a provider.
    * Only succeeds if the provider exists and is reachable.
-   * Automatically enables remote requests if activating a remote provider.
+   * Selecting a remote provider does not enable remote requests; the user must opt in separately.
    */
   public async setActiveProvider(providerId: string): Promise<boolean> {
     const allProviders = [
@@ -246,6 +253,9 @@ export class ProviderManager {
       return false;
     }
 
+    if (this.config.activeProviderId !== providerId) {
+      this.config.activeModelId = null;
+    }
     this.config.activeProviderId = providerId;
 
     this.config.lifecycleState = deriveProviderLifecycleState(this.config);
@@ -257,14 +267,15 @@ export class ProviderManager {
 
   /**
    * Enables remote requests after explicit user consent.
-   * Activates the first available remote provider if one is configured but not yet active.
+   * Activates the first available remote provider only when no local provider is available.
    */
   public async enableRemote(): Promise<boolean> {
     this.config.remoteRequestsAllowed = true;
 
-    // If no active provider, activate the first remote provider
+    // Preserve local-first behavior: do not auto-select a remote while local providers are available.
     if (
       !this.config.activeProviderId &&
+      !this.hasLocalProvider() &&
       this.config.configuredRemote.length > 0
     ) {
       const firstRemote = this.config.configuredRemote[0];

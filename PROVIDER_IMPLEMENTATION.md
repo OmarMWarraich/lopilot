@@ -43,7 +43,7 @@ The implementation defines 5 explicit states that model all valid configurations
 
 - Local providers discovered (e.g., Ollama on localhost:11434)
 - OR local providers configured but none is active
-- **Can send requests?** YES (will use first available local)
+- **Can send requests?** NO (user must select a local provider first)
 - **Next actions:** User selects a specific local provider to activate
 
 ### 3. **local-configured**
@@ -76,15 +76,17 @@ The derivation logic in `deriveProviderLifecycleState()` follows these rules:
    - If it's a local provider → **local-configured**
    - If it's a remote provider:
      - If remote requests allowed → **remote-enabled**
-     - Else → **remote-configured-blocked**
+     - Else continue to local-first fallback below
 
-2. If no active provider but local options exist → **local-available**
+2. If local options exist and no active local provider is selected → **local-available**
 
-3. If no local options but remote configured:
+3. If an active remote provider is selected without consent → **remote-configured-blocked**
+
+4. If no local options but remote configured:
    - If remote requests allowed → **remote-enabled**
    - Else → **remote-configured-blocked**
 
-4. Otherwise → **no-provider**
+5. Otherwise → **no-provider**
 
 ## Extension Integration
 
@@ -133,7 +135,7 @@ The webview now receives and displays provider state:
 When user sends a prompt:
 
 - If `canSendRequest` is false → assistant explains why (no provider, blocked remote, etc.)
-- If `canSendRequest` is true → sends to the adapter (coming next)
+- If `canSendRequest` is true and the active provider is Ollama → streams via Ollama's native chat API
 
 ## Provider Storage
 
@@ -190,7 +192,7 @@ const discovered = await providerManager.discoverLocal({
    - Requires explicit confirmation with warning dialog
 
 2. **Local-first preference:**
-   - Discovered local providers are preferred automatically
+   - Discovered local providers take precedence over a selected but blocked remote provider
    - Remote only used when explicitly selected and enabled
 
 3. **Privacy indicator:**

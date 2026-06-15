@@ -55,7 +55,7 @@ code .
 - `Lopilot: Select Provider` — picks an available local or remote provider to activate.
 - `Lopilot: Enable Remote Providers` — explicit opt-in required before any remote request is allowed.
 - `Lopilot: Select Model` — chooses a model from the active provider (currently Ollama only).
-- `Lopilot: Select Model` — selects a model from the active provider (Ollama only, currently).
+
 ## Provider model (local-first)
 
 Lopilot resolves a model provider before any request is allowed, always preferring local providers and requiring explicit consent for remote ones. Provider state is persisted in `workspaceState` under `lopilot.provider.config.v1`, and the status bar reflects the current state.
@@ -68,7 +68,7 @@ The system models five explicit lifecycle states:
 - **remote-configured-blocked** — remote provider configured but remote requests not yet enabled; requests blocked by design.
 - **remote-enabled** — remote provider active after explicit user opt-in.
 
-Selecting a remote provider never enables remote requests on its own — the user must run `Lopilot: Enable Remote Providers`. See `PROVIDER_IMPLEMENTATION.md` for the full state model and transition rules.
+Selecting a remote provider never enables remote requests on its own; the user must run `Lopilot: Enable Remote Providers`. If a blocked remote provider is selected and local providers are discovered or configured, the lifecycle state returns to `local-available` so local setup remains the preferred path. See `PROVIDER_IMPLEMENTATION.md` for the full state model and transition rules.
 
 ## Development notes
 - Sessions are persisted using VS Code `workspaceState` (Memento) under the key `lopilot.chat.sessions.v1`.
