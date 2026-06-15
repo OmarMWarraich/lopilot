@@ -8,6 +8,7 @@ The project is scaffolded around clear module boundaries so chat, inline complet
 
 - VS Code extension scaffold with command registration, status bar integration, launch configuration, and esbuild bundling.
 - Webview chat panel with sessions persisted in VS Code `workspaceState`.
+- Inline editor completions for active Ollama providers, with request cancellation, partial token preview decorations, and stable final ghost-text rendering.
 - `Ask About Selection` command that starts a chat session from the active editor selection.
 - Local-first provider resolution with explicit lifecycle states for no provider, local available, local configured, remote configured but blocked, and remote enabled.
 - Local provider discovery for common Ollama and LocalAI-compatible endpoints.
@@ -64,6 +65,7 @@ Available commands:
 - `Lopilot: Select Provider` — selects an available local or remote provider.
 - `Lopilot: Enable Remote Providers` — explicitly enables remote requests after user confirmation.
 - `Lopilot: Select Model` — chooses a model from the active provider, currently Ollama only.
+- `Lopilot: Cancel Inline Completion` — cancels the active inline completion stream and clears partial preview text.
 
 ## Ollama Workflow
 
@@ -157,6 +159,7 @@ CI runs the same `npm test` entry point in GitHub Actions using `xvfb-run` for V
 ## Project Layout
 
 - `src/extension.ts` — extension activation, command registration, status bar wiring.
+- `src/inline/` — inline completion provider, prompt assembly, cancellation, and editor preview rendering.
 - `src/chat/` — chat panel and session persistence.
 - `src/provider/` — provider discovery, lifecycle state, model listing, and local-first routing.
 - `src/context/` — shared request-scoped context collection.
@@ -176,7 +179,7 @@ See [docs/privacy-rules.md](docs/privacy-rules.md).
 
 ## Known Limitations
 
-- Inline completions are not implemented yet.
+- Inline completions currently use the active Ollama provider through the native chat stream; the generic adapter client is not wired into inline completions yet.
 - Chat streaming is currently Ollama-specific; the generic adapter client is not wired into chat yet.
 - LocalAI and generic OpenAI-compatible streaming connectors are planned but not implemented.
 - The sandbox runner is currently a policy and process boundary, not container isolation.
