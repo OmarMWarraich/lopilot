@@ -6,7 +6,7 @@ Lightweight prototype of a Copilot-style chat & session manager for VS Code. Thi
 - Scaffold, session manager, webview UI, and core commands implemented.
 - Local-first provider resolution implemented: discovery, configuration, explicit remote opt-in, and a status bar indicator.
 - Typed model-adapter client (chat / completions / embeddings / streaming / health / provenance) implemented against a versioned adapter contract.
-- The adapter client is not yet wired into the chat panel — responses in the UI are still placeholders.
+- Ollama streaming chat is wired into the chat panel; the generic model-adapter client is not wired yet.
 
 ## Prerequisites
 - Node.js (16+ recommended)
@@ -54,7 +54,8 @@ code .
 - `Lopilot: Discover Local Providers` — scans standard ports for local model servers (e.g. Ollama, LocalAI).
 - `Lopilot: Select Provider` — picks an available local or remote provider to activate.
 - `Lopilot: Enable Remote Providers` — explicit opt-in required before any remote request is allowed.
-
+- `Lopilot: Select Model` — chooses a model from the active provider (currently Ollama only).
+- `Lopilot: Select Model` — selects a model from the active provider (Ollama only, currently).
 ## Provider model (local-first)
 
 Lopilot resolves a model provider before any request is allowed, always preferring local providers and requiring explicit consent for remote ones. Provider state is persisted in `workspaceState` under `lopilot.provider.config.v1`, and the status bar reflects the current state.
@@ -78,8 +79,8 @@ Selecting a remote provider never enables remote requests on its own — the use
 - The typed model-adapter client lives in `src/adapter/` (`ModelAdapterClient.ts`, `types.ts`) and targets the contract documented in `docs/adapter-contract.md`. Module boundaries are described in `docs/module-boundaries.md`.
 
 ## Known limitations & next steps
-- The model-adapter client is not yet wired into the chat panel — UI responses are still placeholders.
-- Connect `ProviderManager` + `ModelAdapterClient` to `LopilotPanel` to enable real chat completions and streaming.
+- Chat streaming works for Ollama via the native connector; the versioned ModelAdapterClient is not wired into the chat panel yet.
+- Wire ModelAdapterClient into LopilotPanel to enable OpenAI-compatible providers and adapter-backed streaming.
 - Add embeddings/vector store and RAG to enable grounded answers.
 - Consider migrating persistence to a durable local DB (SQLite) for larger histories.
 

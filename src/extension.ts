@@ -130,13 +130,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
     vscode.commands.registerCommand('lopilot.selectModel', async () => {
-      const models = await providerManager.listModels();
-
       const provider = providerManager.getActiveProvider();
       if (!provider) {
         void vscode.window.showWarningMessage('No active provider. Use "Lopilot: Select Provider" first.');
         return;
       }
+
+      if (!providerManager.canSendRequest()) {
+        const lifecycleState = providerManager.getLifecycleState();
+        if (lifecycleState === 'remote-configured-blocked') {
+          void vscode.window.showWarningMessage('Remote provider requests are blocked. Use "Lopilot: Enable Remote Providers" to opt in.');
+        } else {
+          void vscode.window.showWarningMessage('Provider is not ready. Use "Lopilot: Select Provider" first.');
+        }
+        return;
+      }
+
+      const models = await providerManager.listModels();
 
       if (models.length === 0) {
         if (provider.type !== 'ollama') {
@@ -151,7 +161,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const selected = await vscode.window.showQuickPick(
         models.map((m) => ({
           label: m.displayName,
-          description: [m.quantization, m.maxTokens ? `${m.maxTokens} max tokens` : null].filter(Boolean).join(' · '),
+          description: [m.quantization, m.maxTokens ? `~${m.maxTokens} tokens (est.)` : null].filter(Boolean).join(' · '),
           picked: m.id === activeModelId,
           model: m
         })),

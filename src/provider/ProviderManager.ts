@@ -351,7 +351,7 @@ export class ProviderManager {
    */
   public async listModels(): Promise<ModelMetadata[]> {
     const provider = this.getActiveProvider();
-    if (!provider) {
+    if (!provider || !this.canSendRequest()) {
       return [];
     }
     if (provider.type === 'ollama') {
