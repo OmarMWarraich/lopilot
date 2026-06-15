@@ -75,6 +75,7 @@ Selecting a remote provider never enables remote requests on its own; the user m
 - Provider configuration is persisted under `lopilot.provider.config.v1`.
 - The webview client is in `media/chat.js` and `media/chat.css`.
 - The extension entry is `src/extension.ts`; session logic lives in `src/chat/SessionManager.ts` and the webview panel in `src/chat/LopilotPanel.ts`.
+- Shared context collection lives in `src/context/` and captures current file, selection, neighboring files, repository signals, and recent conversation state for model requests.
 - Provider resolution lives in `src/provider/` (`ProviderState.ts`, `LocalDiscovery.ts`, `ProviderManager.ts`).
 - The typed model-adapter client lives in `src/adapter/` (`ModelAdapterClient.ts`, `types.ts`) and targets the contract documented in `docs/adapter-contract.md`. Module boundaries are described in `docs/module-boundaries.md`.
 

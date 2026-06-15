@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { streamOllamaChat } from '../adapter/OllamaConnector';
+import { SharedContextPipeline } from '../context';
 import { SessionManager } from './SessionManager';
 import { ProviderManager } from '../provider/ProviderManager';
 
@@ -15,6 +16,7 @@ export class LopilotPanel {
 
   private readonly panel: vscode.WebviewPanel;
   private isReady = false;
+  private readonly contextPipeline = new SharedContextPipeline();
 
   private constructor(
     panel: vscode.WebviewPanel,
@@ -147,12 +149,23 @@ export class LopilotPanel {
               await this.providerManager.setActiveModelId(modelId);
             }
 
-            // Build message history for context
+            // Build message history with shared workspace context
             const activeSession = this.sessionManager.getActiveSession();
-            const history = (activeSession?.messages ?? []).map((m) => ({
-              role: m.role as 'user' | 'assistant',
-              content: m.content,
+            const contextBundle = await this.contextPipeline.build({
+              conversation: (activeSession?.messages ?? []).map((message) => ({
+                role: message.role,
+                content: message.content,
+                createdAt: message.createdAt
+              }))
+            });
+            const history = (activeSession?.messages ?? []).map((message) => ({
+              role: message.role as 'user' | 'assistant',
+              content: message.content,
             }));
+            const messages = [
+              { role: 'system' as const, content: this.contextPipeline.formatSystemMessage(contextBundle) },
+              ...history
+            ];
 
             // Create a streaming placeholder and signal start to the webview
             const { messageId } = await this.sessionManager.beginAssistantStream();
@@ -163,7 +176,7 @@ export class LopilotPanel {
               accumulated = await streamOllamaChat({
                 baseUrl: provider.baseUrl,
                 model: modelId,
-                messages: history,
+                messages,
                 onDelta: (delta) => {
                   void this.panel.webview.postMessage({ type: 'stream.delta', messageId, delta });
                 },

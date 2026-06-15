@@ -55,6 +55,7 @@ This document defines the extension module boundaries, dependency rules, and int
 
 - Collects and normalizes editor, workspace, and conversation context.
 - Produces reusable context payloads for completions, chat, review, and agent flows.
+- Owns shared context size limits so providers receive bounded current-file, selection, neighboring-file, repository, and conversation inputs.
 
 ### Adapter
 
