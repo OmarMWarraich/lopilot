@@ -62,3 +62,4 @@ The audit log must not record raw code blocks, complete prompts, complete model 
 - Prefer relative paths in metadata and audit records.
 - Redact command arguments, environment data, and provider headers before logging.
 - Require explicit approval before any future agent action that mutates the repository or transfers code to remote services.
+- Route tests and agent commands through the sandbox runner so mutation approval decisions are captured before execution.
