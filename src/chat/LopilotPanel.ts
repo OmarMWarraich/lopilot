@@ -151,13 +151,7 @@ export class LopilotPanel {
 
             // Build message history with shared workspace context
             const activeSession = this.sessionManager.getActiveSession();
-            const contextBundle = await this.contextPipeline.build({
-              conversation: (activeSession?.messages ?? []).map((message) => ({
-                role: message.role,
-                content: message.content,
-                createdAt: message.createdAt
-              }))
-            });
+            const contextBundle = await this.contextPipeline.build();
             const history = (activeSession?.messages ?? []).map((message) => ({
               role: message.role as 'user' | 'assistant',
               content: message.content,

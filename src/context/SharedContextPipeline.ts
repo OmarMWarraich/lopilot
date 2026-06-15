@@ -117,8 +117,8 @@ export class SharedContextPipeline {
     ];
 
     if (!editor.selection.isEmpty) {
-      const selectionContent = document.getText(editor.selection).trim();
-      if (selectionContent) {
+      const selectionContent = document.getText(editor.selection);
+      if (selectionContent.trim()) {
         items.push({
           kind: 'selection',
           title: `${relativePath}:${editor.selection.start.line + 1}-${editor.selection.end.line + 1}`,
@@ -204,7 +204,8 @@ export class SharedContextPipeline {
 
       const scripts = packageRecord.scripts;
       if (scripts && typeof scripts === 'object' && !Array.isArray(scripts)) {
-        signals.push(`Package scripts: ${Object.keys(scripts).sort().join(', ')}`);
+        const scriptNames = Object.keys(scripts).sort().join(', ');
+        signals.push(`Package scripts: ${truncateWithNotice(scriptNames, 800)}`);
       }
     }
 
