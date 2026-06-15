@@ -167,7 +167,6 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
     }
 
     this.activeRun.abortController.abort();
-    this.activeRun.disposable.dispose();
     this.activeRun = null;
     this.clearPartialPreview();
   }
@@ -298,7 +297,7 @@ export function sanitizeInlineCompletion(value: string): string {
     .replace(/<cursor><\/cursor>/gi, '')
     .replace(/<cursor>/gi, '')
     .replace(/<\/cursor>/gi, '');
-  const trimmed = withoutCursorTags.replace(/^\n+/, '').slice(0, MAX_INLINE_COMPLETION_CHARS);
+  const trimmed = withoutCursorTags.replace(/^[\r\n]+/, '').slice(0, MAX_INLINE_COMPLETION_CHARS);
 
   return trimTrailingPartialFence(trimmed).trimEnd();
 }
