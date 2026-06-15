@@ -18,8 +18,8 @@ Lopilot persists only the state needed to restore extension behavior.
 | --- | --- | --- | --- |
 | Chat sessions | `workspaceState` key `lopilot.chat.sessions.v1` | User and assistant chat messages, session titles, timestamps | Yes, only when the user sends or stores it as chat content |
 | Provider configuration | `workspaceState` key `lopilot.provider.config.v1` | Provider endpoints, active provider/model ids, discovery timestamps, remote consent flag | No |
-| Shared context bundles | Memory only | Current request's bounded file, selection, neighboring file, repository, and conversation context | Yes, request-scoped only |
-| API keys and provider secrets | VS Code `SecretStorage` | Secret values or secret references for authenticated providers | No code content |
+| Shared context bundles | Memory only | Current request's bounded file, selection, neighboring files, repository, and conversation context | Yes, request-scoped only |
+| API keys and provider secrets | Future: VS Code `SecretStorage` | Secret values or secret references for authenticated providers | No code content |
 | Agent audit log | Future local audit store under workspace-specific extension storage | Intent, approvals, command summaries, changed-file paths, result metadata, timestamps | No raw code or full prompts by default |
 
 Do not store raw file snapshots, selections, neighboring file contents, prompt bundles, model request bodies, or model response bodies outside chat/session persistence unless a future feature explicitly documents the storage purpose and obtains user-facing consent.
