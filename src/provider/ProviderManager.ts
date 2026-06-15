@@ -231,7 +231,7 @@ export class ProviderManager {
   /**
    * Activates a provider.
    * Only succeeds if the provider exists and is reachable.
-    * Selecting a remote provider does not enable remote requests; the user must opt in separately.
+   * Selecting a remote provider does not enable remote requests; the user must opt in separately.
    */
   public async setActiveProvider(providerId: string): Promise<boolean> {
     const allProviders = [
