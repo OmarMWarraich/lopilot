@@ -76,6 +76,7 @@ Selecting a remote provider never enables remote requests on its own; the user m
 - The webview client is in `media/chat.js` and `media/chat.css`.
 - The extension entry is `src/extension.ts`; session logic lives in `src/chat/SessionManager.ts` and the webview panel in `src/chat/LopilotPanel.ts`.
 - Shared context collection lives in `src/context/` and captures current file, selection, neighboring files, repository signals, and recent conversation state for model requests.
+- Sandbox execution primitives live in `src/agent/` and are documented in `docs/sandbox-runner.md`.
 - Provider resolution lives in `src/provider/` (`ProviderState.ts`, `LocalDiscovery.ts`, `ProviderManager.ts`).
 - The typed model-adapter client lives in `src/adapter/` (`ModelAdapterClient.ts`, `types.ts`) and targets the contract documented in `docs/adapter-contract.md`. Module boundaries are described in `docs/module-boundaries.md`.
 - Privacy guarantees for request-scoped code context, metadata retention, remote consent, and future audit logs are documented in `docs/privacy-rules.md`.
