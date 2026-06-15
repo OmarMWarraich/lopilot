@@ -151,15 +151,18 @@ export class SandboxRunner {
       let didTimeout = false;
       let didCancel = false;
 
-      const timeout = setTimeout(() => {
-        didTimeout = true;
-        child.kill('SIGTERM');
-      }, request.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+const timeout = setTimeout(() => {
+  didTimeout = true;
+  child.kill('SIGTERM');
+  setTimeout(() => child.kill('SIGKILL'), 5000).unref();
+}, request.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
-      const cancellationDisposable = cancellationToken?.onCancellationRequested(() => {
-        didCancel = true;
-        child.kill('SIGTERM');
-      });
+const cancellationDisposable = cancellationToken?.onCancellationRequested(() => {
+  didCancel = true;
+  clearTimeout(timeout);
+  child.kill('SIGTERM');
+  setTimeout(() => child.kill('SIGKILL'), 5000).unref();
+});
 
       child.stdout?.on('data', (chunk: Buffer) => {
         stdout = appendBounded(stdout, chunk.toString());
@@ -199,15 +202,22 @@ export class SandboxRunner {
 
 function normalizeCheckpoints(request: SandboxRunRequest): ApprovalCheckpoint[] {
   const checkpoints = [...(request.checkpoints ?? [])];
+  const mutatesRepository = request.mutatesRepository ?? request.kind === 'repository-mutation';
 
-  if (request.mutatesRepository && !checkpoints.some((checkpoint) => checkpoint.id === 'repository-mutation')) {
-    checkpoints.unshift({
-      id: 'repository-mutation',
-      title: 'Approve repository mutation',
-      detail: `${request.title} can change files, branches, or repository state. Review the command before approving.`,
-      risk: 'high',
-      required: true
-    });
+  if (mutatesRepository) {
+    const existingIndex = checkpoints.findIndex((checkpoint) => checkpoint.id === 'repository-mutation');
+
+    if (existingIndex === -1) {
+      checkpoints.unshift({
+        id: 'repository-mutation',
+        title: 'Approve repository mutation',
+        detail: `${request.title} can change files, branches, or repository state. Review the command before approving.`,
+        risk: 'high',
+        required: true
+      });
+    } else if (!checkpoints[existingIndex].required) {
+      checkpoints[existingIndex] = { ...checkpoints[existingIndex], required: true, risk: 'high' };
+    }
   }
 
   if (request.kind === 'test' && !checkpoints.some((checkpoint) => checkpoint.id === 'test-execution')) {
@@ -215,8 +225,8 @@ function normalizeCheckpoints(request: SandboxRunRequest): ApprovalCheckpoint[] 
       id: 'test-execution',
       title: 'Approve test execution',
       detail: `${request.title} will run tests or validation commands in the workspace.`,
-      risk: request.mutatesRepository ? 'medium' : 'low',
-      required: !!request.mutatesRepository
+      risk: mutatesRepository ? 'medium' : 'low',
+      required: !!mutatesRepository
     });
   }
 
