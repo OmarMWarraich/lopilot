@@ -67,7 +67,7 @@
     "package": "node ./esbuild.js --production",
     "test:unit": "vitest run --config vitest.config.mts --project unit",
     "test:integration": "vitest run --config vitest.config.mts --project integration",
-    "test:e2e": "npm run compile && node ./test/e2e/runTest.cjs",
+    "test:e2e": "node ./test/e2e/runTest.cjs",
     "test": "npm run lint && npm run lint:tests && npm run compile && npm run test:unit && npm run test:integration && npm run test:e2e"
   },
   "devDependencies": {
