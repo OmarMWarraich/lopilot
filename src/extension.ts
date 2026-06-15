@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 
 import { LopilotPanel } from './chat/LopilotPanel';
 import { SessionManager } from './chat/SessionManager';
+import { LopilotInlineCompletionProvider } from './inline';
 import { ProviderManager } from './provider/ProviderManager';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -10,6 +11,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   await sessionManager.ensureSession();
 
   const providerManager = new ProviderManager(context.workspaceState);
+  LopilotInlineCompletionProvider.register(context, providerManager);
 
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBarItem.name = 'Lopilot';

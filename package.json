@@ -47,6 +47,11 @@
         "command": "lopilot.selectModel",
         "title": "Select Model",
         "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.cancelInlineCompletion",
+        "title": "Cancel Inline Completion",
+        "category": "Lopilot"
       }
     ],
     "menus": {
