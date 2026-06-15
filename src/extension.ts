@@ -128,6 +128,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           void vscode.window.showErrorMessage('Could not enable remote providers. Check that a remote endpoint is reachable.');
         }
       }
+    }),
+    vscode.commands.registerCommand('lopilot.selectModel', async () => {
+      const models = await providerManager.listModels();
+
+      if (models.length === 0) {
+        const provider = providerManager.getActiveProvider();
+        if (!provider) {
+          void vscode.window.showWarningMessage('No active provider. Use "Lopilot: Select Provider" first.');
+        } else {
+          void vscode.window.showWarningMessage(`No models found on ${provider.name}. Pull a model with \`ollama pull <model>\`.`);
+        }
+        return;
+      }
+
+      const activeModelId = providerManager.getActiveModelId();
+      const selected = await vscode.window.showQuickPick(
+        models.map((m) => ({
+          label: m.displayName,
+          description: [m.quantization, m.maxTokens ? `${m.maxTokens} max tokens` : null].filter(Boolean).join(' · '),
+          picked: m.id === activeModelId,
+          model: m
+        })),
+        { placeHolder: 'Select a model' }
+      );
+
+      if (selected) {
+        await providerManager.setActiveModelId(selected.model.id);
+        void vscode.window.showInformationMessage(`Active model: ${selected.label}`);
+      }
     })
   );
 }

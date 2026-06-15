@@ -20,32 +20,37 @@
     "commands": [
       {
         "command": "lopilot.openChat",
-        "title": "Lopilot: Open Chat",
+        "title": "Open Chat",
         "category": "Lopilot"
       },
       {
         "command": "lopilot.newSession",
-        "title": "Lopilot: New Session",
+        "title": "New Session",
         "category": "Lopilot"
       },
       {
         "command": "lopilot.askAboutSelection",
-        "title": "Lopilot: Ask About Selection",
+        "title": "Ask About Selection",
         "category": "Lopilot"
       },
       {
         "command": "lopilot.discoverProviders",
-        "title": "Lopilot: Discover Local Providers",
+        "title": "Discover Local Providers",
         "category": "Lopilot"
       },
       {
         "command": "lopilot.setActiveProvider",
-        "title": "Lopilot: Select Provider",
+        "title": "Select Provider",
         "category": "Lopilot"
       },
       {
         "command": "lopilot.enableRemoteProviders",
-        "title": "Lopilot: Enable Remote Providers",
+        "title": "Enable Remote Providers",
+        "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.selectModel",
+        "title": "Select Model",
         "category": "Lopilot"
       }
     ],

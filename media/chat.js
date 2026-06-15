@@ -57,6 +57,54 @@
       vscode.setState(state);
       render();
     }
+
+    if (message && message.type === 'stream.start') {
+      // Append an empty streaming assistant bubble
+      const bubble = document.createElement('article');
+      bubble.className = 'message message--assistant message--streaming';
+      bubble.dataset.messageId = message.messageId;
+
+      const meta = document.createElement('span');
+      meta.className = 'message__meta';
+      meta.textContent = 'assistant | now';
+
+      const body = document.createElement('div');
+      body.className = 'message__body';
+
+      bubble.append(meta, body);
+      messagesContainer.append(bubble);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    if (message && message.type === 'stream.delta') {
+      const bubble = messagesContainer.querySelector(`[data-message-id="${message.messageId}"]`);
+      if (bubble) {
+        const body = bubble.querySelector('.message__body');
+        if (body) {
+          body.textContent = (body.textContent ?? '') + message.delta;
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+      }
+    }
+
+    if (message && message.type === 'stream.error') {
+      const bubble = messagesContainer.querySelector(`[data-message-id="${message.messageId}"]`);
+      if (bubble) {
+        bubble.classList.remove('message--streaming');
+        bubble.classList.add('message--error');
+        const body = bubble.querySelector('.message__body');
+        if (body) {
+          body.textContent = `Error: ${message.error}`;
+        }
+      }
+    }
+
+    if (message && message.type === 'stream.done') {
+      const bubble = messagesContainer.querySelector(`[data-message-id="${message.messageId}"]`);
+      if (bubble) {
+        bubble.classList.remove('message--streaming');
+      }
+    }
   });
 
   render();

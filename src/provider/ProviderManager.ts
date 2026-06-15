@@ -17,8 +17,10 @@ import {
 import {
   discoverLocalProviders,
   DiscoveryOptions,
+  fetchOllamaModels,
   testEndpoint,
 } from "./LocalDiscovery";
+import { ModelMetadata } from "../adapter";
 
 const STORAGE_KEY = "lopilot.provider.config.v1";
 
@@ -46,6 +48,7 @@ export class ProviderManager {
       configuredLocal: persisted.configuredLocal ?? [],
       configuredRemote: persisted.configuredRemote ?? [],
       activeProviderId: persisted.activeProviderId ?? null,
+      activeModelId: persisted.activeModelId ?? null,
       remoteRequestsAllowed: persisted.remoteRequestsAllowed ?? false,
       lastDiscoveryTime: persisted.lastDiscoveryTime,
     };
@@ -339,6 +342,36 @@ export class ProviderManager {
   public async clearDiscoveredProviders(): Promise<void> {
     this.config.discoveredLocal = [];
     this.config.lifecycleState = deriveProviderLifecycleState(this.config);
+    await this.saveConfig();
+  }
+
+  /**
+   * Lists the models available on the currently active provider.
+   * Returns an empty array if no provider is active or the provider is not Ollama.
+   */
+  public async listModels(): Promise<ModelMetadata[]> {
+    const provider = this.getActiveProvider();
+    if (!provider) {
+      return [];
+    }
+    if (provider.type === 'ollama') {
+      return fetchOllamaModels(provider.baseUrl);
+    }
+    return [];
+  }
+
+  /**
+   * Returns the currently active model id, or null if none has been selected.
+   */
+  public getActiveModelId(): string | null {
+    return this.config.activeModelId ?? null;
+  }
+
+  /**
+   * Sets the active model id and persists it.
+   */
+  public async setActiveModelId(modelId: string): Promise<void> {
+    this.config.activeModelId = modelId;
     await this.saveConfig();
   }
 }
