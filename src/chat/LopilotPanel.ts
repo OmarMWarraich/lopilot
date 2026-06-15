@@ -117,6 +117,8 @@ export class LopilotPanel {
             }
 
             await this.sessionManager.appendUserMessage(prompt);
+            // Optimistically update the webview so the user's message appears immediately
+            await this.refresh();
 
             const provider = this.providerManager.getActiveProvider();
 
@@ -128,17 +130,19 @@ export class LopilotPanel {
               return;
             }
 
-            // Resolve the model to use
+            // Resolve the model to use and validate active model id
+            const models = await this.providerManager.listModels();
+            if (models.length === 0) {
+              await this.sessionManager.appendAssistantMessage(
+                'No models found on the active Ollama instance. Pull a model with `ollama pull <model>` and try again.'
+              );
+              await this.refresh();
+              return;
+            }
+
             let modelId = this.providerManager.getActiveModelId();
-            if (!modelId) {
-              const models = await this.providerManager.listModels();
-              if (models.length === 0) {
-                await this.sessionManager.appendAssistantMessage(
-                  'No models found on the active Ollama instance. Pull a model with `ollama pull <model>` and try again.'
-                );
-                await this.refresh();
-                return;
-              }
+            // If the stored active model is missing on the instance, fall back to the first available model
+            if (!modelId || !models.some((m) => m.id === modelId)) {
               modelId = models[0].id;
               await this.providerManager.setActiveModelId(modelId);
             }
@@ -167,7 +171,7 @@ export class LopilotPanel {
             } catch (err) {
               const errMsg = err instanceof Error ? err.message : String(err);
               await this.panel.webview.postMessage({ type: 'stream.error', messageId, error: errMsg });
-              await this.sessionManager.finalizeStreamingMessage(messageId, `_(Error: ${errMsg})_`);
+              await this.sessionManager.finalizeStreamingMessage(messageId, `Error: ${errMsg}`);
               await this.refresh();
               return;
             }

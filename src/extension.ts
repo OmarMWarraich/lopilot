@@ -132,10 +132,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('lopilot.selectModel', async () => {
       const models = await providerManager.listModels();
 
+      const provider = providerManager.getActiveProvider();
+      if (!provider) {
+        void vscode.window.showWarningMessage('No active provider. Use "Lopilot: Select Provider" first.');
+        return;
+      }
+
       if (models.length === 0) {
-        const provider = providerManager.getActiveProvider();
-        if (!provider) {
-          void vscode.window.showWarningMessage('No active provider. Use "Lopilot: Select Provider" first.');
+        if (provider.type !== 'ollama') {
+          void vscode.window.showWarningMessage(`Model selection is currently supported only for Ollama providers (active: ${provider.name}).`);
         } else {
           void vscode.window.showWarningMessage(`No models found on ${provider.name}. Pull a model with \`ollama pull <model>\`.`);
         }
