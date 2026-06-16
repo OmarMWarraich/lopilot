@@ -481,8 +481,7 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
     this.clearPartialPreview();
 
     if (clearSession) {
-      this.candidateSession = null;
-      this.setInlineCandidateContext(false);
+      this.clearCandidateSession();
     }
 
     return true;
