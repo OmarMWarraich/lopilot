@@ -14,7 +14,7 @@ The project is scaffolded around clear module boundaries so chat, inline complet
 - Local-first provider resolution with explicit lifecycle states for no provider, local available, local configured, remote configured but blocked, and remote enabled.
 - Local provider discovery for common Ollama and LocalAI-compatible endpoints.
 - Explicit remote-provider opt-in before remote requests are allowed.
-- Ollama `/api/chat` streaming connector with incremental webview updates.
+- Production-ready local Ollama connector with `/api/chat` streaming, `/api/tags` model metadata, health checks, request timeouts, cancellation, and structured connector errors.
 - Model selection for active Ollama providers via `Lopilot: Select Model`.
 - Shared context pipeline for current file, active selection, neighboring files, repository signals, and recent conversation state.
 - Typed model-adapter client for completions, chat completions, embeddings, models, health, and provenance endpoints.
@@ -138,7 +138,7 @@ The typed adapter client lives in `src/adapter/` and targets the versioned contr
 - `/v1/health`
 - `/v1/provenance`
 
-The generic `ModelAdapterClient` is implemented but not yet wired into the chat panel; chat streaming currently uses Ollama's native API.
+The generic `ModelAdapterClient` is implemented but not yet wired into the chat panel. Chat and inline completions currently use the native `OllamaConnector`, which wraps Ollama's `/api/chat` and `/api/tags` endpoints with local-first request handling.
 
 ## Sandbox And Approval Checkpoints
 

@@ -3,7 +3,8 @@
  * on standard ports and user-configured addresses.
  */
 
-import { ModelMetadata } from "../adapter";
+import { fetchOllamaModels as fetchOllamaModelsFromConnector } from "../adapter";
+import { ModelMetadata } from "../adapter/types";
 import { ProviderEndpoint } from "./ProviderState";
 
 export interface DiscoveryOptions {
@@ -170,20 +171,6 @@ export async function testEndpoint(
   return checkHealthAsync(baseUrl, timeoutMs);
 }
 
-/** Shape of a single model entry returned by Ollama's GET /api/tags */
-interface OllamaTagEntry {
-  name: string;
-  details?: {
-    parameter_size?: string;
-    quantization_level?: string;
-  };
-}
-
-/** Shape of the Ollama GET /api/tags response body */
-interface OllamaTagsResponse {
-  models: OllamaTagEntry[];
-}
-
 /**
  * Fetches the list of models currently available on an Ollama instance and
  * maps them to the shared {@link ModelMetadata} shape.
@@ -197,48 +184,5 @@ export async function fetchOllamaModels(
   baseUrl: string,
   timeoutMs: number = 5000,
 ): Promise<ModelMetadata[]> {
-  try {
-    const response = await fetch(`${baseUrl}/api/tags`, {
-      method: "GET",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const body = (await response.json()) as OllamaTagsResponse;
-
-    if (!Array.isArray(body.models)) {
-      return [];
-    }
-
-    return body.models.map((entry): ModelMetadata => {
-      const quantization = entry.details?.quantization_level ?? null;
-      const paramSize = entry.details?.parameter_size ?? null;
-
-      // Derive a rough maxTokens estimate from the parameter size string
-      // (e.g. "22.1B" → 8192, "4.21B" → 4096).  Ollama does not expose this
-      // directly; callers may override it once a proper model card is available.
-      let maxTokens: number | null = null;
-      if (paramSize) {
-        const billions = parseFloat(paramSize);
-        if (!isNaN(billions)) {
-          maxTokens = billions >= 10 ? 8192 : 4096;
-        }
-      }
-
-      return {
-        id: entry.name,
-        displayName: entry.name,
-        quantization,
-        device: null,
-        maxTokens,
-        contextWindow: null,
-        license: null,
-      };
-    });
-  } catch {
-    return [];
-  }
+  return fetchOllamaModelsFromConnector(baseUrl, timeoutMs);
 }

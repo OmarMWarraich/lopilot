@@ -166,7 +166,7 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
         model: modelId,
         messages,
         signal: abortController.signal,
-        onDelta: (delta) => {
+        onDelta: (delta: string) => {
           accumulated += delta;
           this.updatePartialPreview(run, sanitizeInlineCompletion(accumulated));
         }
