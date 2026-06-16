@@ -73,6 +73,14 @@ Available commands:
 - `Lopilot: Accept Next Inline Edit` — accepts the next line or token chunk from the active candidate and keeps the remainder available.
 - `Lopilot: Preview Inline Diff` — opens the active inline candidate in VS Code's diff editor before accepting it.
 
+Inline completion shortcuts are active only while a Lopilot inline candidate is visible:
+
+- Accept candidate: `Ctrl+Enter`, or `Cmd+Enter` on macOS.
+- Cycle candidate: `Alt+]`.
+- Accept next inline edit: `Ctrl+Alt+Right`, or `Cmd+Alt+Right` on macOS.
+- Preview inline diff: `Ctrl+Alt+D`, or `Cmd+Alt+D` on macOS.
+- Dismiss candidates: `Escape`.
+
 ## Ollama Workflow
 
 For live local chat responses:

@@ -80,13 +80,71 @@
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "lopilot.cancelInlineCompletion",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "lopilot.acceptCompletionCandidate",
+          "when": "editorTextFocus && lopilot.inlineCandidateVisible"
+        },
+        {
+          "command": "lopilot.cycleCompletionCandidate",
+          "when": "editorTextFocus && lopilot.inlineCandidateVisible"
+        },
+        {
+          "command": "lopilot.dismissCompletionCandidates",
+          "when": "editorTextFocus && lopilot.inlineCandidateVisible"
+        },
+        {
+          "command": "lopilot.acceptNextInlineEdit",
+          "when": "editorTextFocus && lopilot.inlineCandidateVisible"
+        },
+        {
+          "command": "lopilot.previewInlineDiff",
+          "when": "editorTextFocus && lopilot.inlineCandidateVisible"
+        }
+      ],
       "editor/context": [
         {
           "command": "lopilot.askAboutSelection",
           "when": "editorHasSelection"
         }
       ]
-    }
+    },
+    "keybindings": [
+      {
+        "command": "lopilot.acceptCompletionCandidate",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && lopilot.inlineCandidateVisible"
+      },
+      {
+        "command": "lopilot.cycleCompletionCandidate",
+        "key": "alt+]",
+        "mac": "alt+]",
+        "when": "editorTextFocus && lopilot.inlineCandidateVisible"
+      },
+      {
+        "command": "lopilot.acceptNextInlineEdit",
+        "key": "ctrl+alt+right",
+        "mac": "cmd+alt+right",
+        "when": "editorTextFocus && lopilot.inlineCandidateVisible"
+      },
+      {
+        "command": "lopilot.previewInlineDiff",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d",
+        "when": "editorTextFocus && lopilot.inlineCandidateVisible"
+      },
+      {
+        "command": "lopilot.dismissCompletionCandidates",
+        "key": "escape",
+        "mac": "escape",
+        "when": "editorTextFocus && lopilot.inlineCandidateVisible"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

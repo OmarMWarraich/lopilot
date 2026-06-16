@@ -49,6 +49,7 @@ const MAX_INLINE_COMPLETION_CHARS = 1600;
 const MAX_INLINE_CANDIDATES = 3;
 const PARTIAL_PREVIEW_THROTTLE_MS = 40;
 const INLINE_DIFF_PREVIEW_SCHEME = 'lopilot-inline-preview';
+const INLINE_CANDIDATE_CONTEXT_KEY = 'lopilot.inlineCandidateVisible';
 const DOCUMENT_SELECTOR: vscode.DocumentSelector = [
   { scheme: 'file' },
   { scheme: 'untitled' }
@@ -233,8 +234,7 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
 
   public dismissCompletionCandidates(): void {
     this.cancelActiveCompletion();
-    this.candidateSession = null;
-    this.clearPartialPreview();
+    this.clearCandidateSession();
   }
 
   public async acceptNextInlineEdit(): Promise<void> {
@@ -300,13 +300,13 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
 
   public recordInlineCompletionAccepted(sessionId: number): void {
     if (this.candidateSession?.id === sessionId) {
-      this.candidateSession = null;
-      this.clearPartialPreview();
+      this.clearCandidateSession();
     }
   }
 
   public dispose(): void {
     this.cancelActiveCompletion();
+    this.clearCandidateSession();
     this.previewDecoration.dispose();
     this.diffPreviewContentProvider.dispose();
   }
@@ -417,6 +417,7 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
       activeIndex: 0
     };
     this.candidateSession = session;
+    this.setInlineCandidateContext(true);
     return session;
   }
 
@@ -480,10 +481,20 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
     this.clearPartialPreview();
 
     if (clearSession) {
-      this.candidateSession = null;
+      this.clearCandidateSession();
     }
 
     return true;
+  }
+
+  private clearCandidateSession(): void {
+    this.candidateSession = null;
+    this.clearPartialPreview();
+    this.setInlineCandidateContext(false);
+  }
+
+  private setInlineCandidateContext(visible: boolean): void {
+    void vscode.commands.executeCommand('setContext', INLINE_CANDIDATE_CONTEXT_KEY, visible);
   }
 }
 
