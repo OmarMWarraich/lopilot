@@ -207,6 +207,7 @@ export class OllamaConnector {
           doneReason = result.done_reason ?? doneReason;
 
           if (result.done) {
+            await reader.cancel().catch(() => undefined);
             return {
               model: result.model ?? request.model,
               content: accumulated,
@@ -497,11 +498,11 @@ function classifyHttpStatus(status: number): AdapterErrorCode {
 
 function classifyOllamaError(message: string): AdapterErrorCode {
   const normalized = message.toLowerCase();
-  if (normalized.includes('not found') || normalized.includes('model')) {
-    return 'unsupported_feature';
-  }
-  if (normalized.includes('memory') || normalized.includes('out of memory')) {
+  if (normalized.includes('out of memory') || normalized.includes('memory')) {
     return 'out_of_memory';
+  }
+  if (normalized.includes('not found')) {
+    return 'unsupported_feature';
   }
   if (normalized.includes('timeout')) {
     return 'timeout';
