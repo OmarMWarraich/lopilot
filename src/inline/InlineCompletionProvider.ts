@@ -246,8 +246,10 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
       return;
     }
 
-    await this.applyCandidateText(session, nextEdit.text, false);
-
+    const applied = await this.applyCandidateText(session, nextEdit.text, false);
+    if (!applied) {
+      return;
+    }
     const remaining = activeCandidate.slice(nextEdit.text.length).replace(/^\r?\n/, '');
     if (!remaining.trim()) {
       this.dismissCompletionCandidates();
@@ -547,7 +549,7 @@ export function getNextInlineEdit(candidate: string): NextInlineEdit | undefined
   }
 
   const newlineMatch = candidate.match(/^.*\r?\n/);
-  if (newlineMatch?.[0].trim()) {
+  if (newlineMatch?.[0] !== undefined) {
     return { text: newlineMatch[0] };
   }
 
