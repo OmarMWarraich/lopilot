@@ -10,10 +10,7 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--vscode-editor-foreground);
-  background:
-    radial-gradient(circle at top left, rgba(72, 143, 255, 0.14), transparent 28rem),
-    linear-gradient(180deg, rgba(32, 32, 32, 0.1), transparent 16rem),
-    var(--vscode-editor-background);
+  background: var(--vscode-editor-background);
   font-family: var(--vscode-font-family);
 }
 
@@ -35,8 +32,7 @@ textarea {
   gap: 1rem;
   padding: 1.5rem;
   border-bottom: 1px solid var(--vscode-panel-border);
-  background: rgba(0, 0, 0, 0.06);
-  backdrop-filter: blur(12px);
+  background: var(--vscode-sideBar-background);
 }
 
 .topbar h1,
@@ -64,7 +60,7 @@ textarea {
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--vscode-panel-border);
-  border-radius: 999px;
+  border-radius: 0.5rem;
   padding: 0.35rem 0.75rem;
   background: rgba(0, 0, 0, 0.08);
   font-size: 0.75rem;
@@ -128,7 +124,7 @@ textarea {
 .session-card {
   width: 100%;
   border: 1px solid var(--vscode-panel-border);
-  border-radius: 0.9rem;
+  border-radius: 0.5rem;
   padding: 0.9rem;
   color: inherit;
   background: rgba(0, 0, 0, 0.08);
@@ -172,7 +168,7 @@ textarea {
   gap: 1rem;
   min-height: 2.5rem;
   border: 1px solid var(--vscode-panel-border);
-  border-radius: 0.9rem;
+  border-radius: 0.5rem;
   padding: 0.9rem 1rem;
   background: rgba(0, 0, 0, 0.06);
 }
@@ -189,7 +185,7 @@ textarea {
 .message {
   max-width: min(52rem, 92%);
   border: 1px solid var(--vscode-panel-border);
-  border-radius: 1rem;
+  border-radius: 0.5rem;
   padding: 0.95rem 1rem;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -206,6 +202,21 @@ textarea {
   background: rgba(0, 0, 0, 0.08);
 }
 
+.message--streaming .message__body::after {
+  content: '';
+  display: inline-block;
+  width: 0.45rem;
+  height: 1em;
+  margin-left: 0.2rem;
+  background: var(--vscode-editor-foreground);
+  vertical-align: -0.15rem;
+  animation: cursor-pulse 900ms steps(2, start) infinite;
+}
+
+.message--error {
+  border-color: var(--vscode-errorForeground);
+}
+
 .message__meta {
   display: block;
   margin-bottom: 0.45rem;
@@ -215,12 +226,19 @@ textarea {
   letter-spacing: 0.06em;
 }
 
+.message__context {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.75rem;
+}
+
 .empty-state {
   display: grid;
   place-items: center;
   min-height: 14rem;
   border: 1px dashed var(--vscode-panel-border);
-  border-radius: 1rem;
+  border-radius: 0.5rem;
   padding: 1.5rem;
   color: var(--vscode-descriptionForeground);
   text-align: center;
@@ -231,7 +249,7 @@ textarea {
   flex-direction: column;
   gap: 0.75rem;
   border: 1px solid var(--vscode-panel-border);
-  border-radius: 1rem;
+  border-radius: 0.5rem;
   padding: 1rem;
   background: rgba(0, 0, 0, 0.08);
 }
@@ -245,7 +263,7 @@ textarea {
   width: 100%;
   resize: vertical;
   border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
-  border-radius: 0.8rem;
+  border-radius: 0.5rem;
   padding: 0.9rem 1rem;
   color: inherit;
   background: var(--vscode-input-background);
@@ -256,6 +274,29 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.context-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.context-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.8rem;
+}
+
+.context-toggle input {
+  margin: 0;
 }
 
 .composer__hint {
@@ -266,7 +307,7 @@ textarea {
 
 .button {
   border: none;
-  border-radius: 999px;
+  border-radius: 0.5rem;
   padding: 0.6rem 1rem;
   color: var(--vscode-button-foreground);
   background: var(--vscode-button-background);
@@ -281,6 +322,16 @@ textarea {
   border: 1px solid var(--vscode-panel-border);
   color: inherit;
   background: transparent;
+}
+
+@keyframes cursor-pulse {
+  0%, 45% {
+    opacity: 1;
+  }
+
+  46%, 100% {
+    opacity: 0;
+  }
 }
 
 @media (max-width: 900px) {

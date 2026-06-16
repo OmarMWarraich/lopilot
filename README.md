@@ -7,7 +7,7 @@ The project is scaffolded around clear module boundaries so chat, inline complet
 ## Current Features
 
 - VS Code extension scaffold with command registration, status bar integration, launch configuration, and esbuild bundling.
-- Webview chat panel with sessions persisted in VS Code `workspaceState`.
+- Webview chat panel with streaming responses, persisted conversation history, and file, selection, and repository context toggles.
 - Inline editor completions for active Ollama providers, with request cancellation, multiple candidates, partial token preview decorations, and stable final ghost-text rendering.
 - Native diff previews for active inline candidates before accepting generated changes.
 - `Ask About Selection` command that starts a chat session from the active editor selection.
@@ -72,6 +72,8 @@ Available commands:
 - `Lopilot: Dismiss Completion Candidates` — clears the active candidate session.
 - `Lopilot: Accept Next Inline Edit` — accepts the next line or token chunk from the active candidate and keeps the remainder available.
 - `Lopilot: Preview Inline Diff` — opens the active inline candidate in VS Code's diff editor before accepting it.
+
+The chat composer includes context toggles for the current file, active selection, and repository context. Conversation history is stored in VS Code `workspaceState` and sent as chat history for each streaming request.
 
 Inline completion shortcuts are active only while a Lopilot inline candidate is visible:
 
