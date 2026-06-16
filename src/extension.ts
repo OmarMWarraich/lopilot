@@ -185,7 +185,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 export function deactivate(): void {}
 
-function formatProviderReadinessFailure(availability: string, detail: string): string {
+function formatProviderReadinessFailure(availability: import('./provider/ProviderManager').ProviderAvailability, detail: string): string {
   switch (availability) {
     case 'unavailable':
       return `The active provider is unavailable. ${detail}`;

@@ -197,7 +197,7 @@ export class OllamaConnector {
           status: 'degraded',
           detail: error instanceof Error ? error.message : String(error)
         },
-        capabilities: createOllamaCapabilities(false),
+        capabilities: { ...createOllamaCapabilities(false), modelListing: false },
         models: [],
         failure: error instanceof Error ? error.message : 'Could not list Ollama models.'
       };

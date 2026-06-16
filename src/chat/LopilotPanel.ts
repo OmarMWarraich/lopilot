@@ -320,7 +320,7 @@ function summarizeContextBundle(bundle: Awaited<ReturnType<SharedContextPipeline
   }, {});
 }
 
-function formatProviderReadinessFailure(availability: string, detail: string): string {
+function formatProviderReadinessFailure(availability: import('../provider/ProviderManager').ProviderAvailability, detail: string): string {
   switch (availability) {
     case 'unavailable':
       return `The active Ollama provider is unavailable. ${detail}`;

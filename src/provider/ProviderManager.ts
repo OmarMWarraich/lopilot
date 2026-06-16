@@ -476,6 +476,17 @@ function toProviderReadiness(provider: ProviderEndpoint, discovery: OllamaCapabi
     };
   }
 
+  if (!discovery.capabilities.modelListing) {
+    return {
+      availability: "unavailable",
+      detail: discovery.failure ?? "Ollama model listing is unavailable.",
+      provider,
+      health: discovery.health,
+      models: [],
+      capabilities: discovery.capabilities,
+    };
+  }
+
   if (discovery.models.length === 0) {
     return {
       availability: "no-models",
