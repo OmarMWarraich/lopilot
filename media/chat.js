@@ -7,6 +7,9 @@
   const composer = document.getElementById('composer');
   const promptInput = document.getElementById('prompt-input');
   const newSessionButton = document.getElementById('new-session');
+  const includeFileInput = document.getElementById('include-file');
+  const includeSelectionInput = document.getElementById('include-selection');
+  const includeRepositoryInput = document.getElementById('include-repository');
 
   // Migrate old state shapes: pre-provider builds stored sessions at the top level
   // without a `chat` key. Reset to defaults if the shape is unrecognised.
@@ -23,8 +26,16 @@
       stateDescription: 'No provider configured',
       canSendRequest: false,
       activeProvider: null
+    },
+    contextOptions: {
+      includeCurrentFile: true,
+      includeSelection: true,
+      includeRepositoryContext: true
     }
   } : _persisted;
+
+  state.contextOptions = normalizeContextOptions(state.contextOptions);
+  hydrateContextToggles();
 
   newSessionButton.addEventListener('click', () => {
     vscode.postMessage({ type: 'newSession' });
@@ -38,9 +49,20 @@
       return;
     }
 
-    vscode.postMessage({ type: 'sendPrompt', prompt });
+    const contextOptions = readContextOptions();
+    state.contextOptions = contextOptions;
+    vscode.setState(state);
+
+    vscode.postMessage({ type: 'sendPrompt', prompt, contextOptions });
     promptInput.value = '';
     promptInput.focus();
+  });
+
+  [includeFileInput, includeSelectionInput, includeRepositoryInput].forEach((input) => {
+    input.addEventListener('change', () => {
+      state.contextOptions = readContextOptions();
+      vscode.setState(state);
+    });
   });
 
   promptInput.addEventListener('keydown', (event) => {
@@ -53,8 +75,13 @@
     const message = event.data;
 
     if (message && message.type === 'state') {
-      state = message.payload;
+      const contextOptions = normalizeContextOptions(state.contextOptions);
+      state = {
+        ...message.payload,
+        contextOptions
+      };
       vscode.setState(state);
+      hydrateContextToggles();
       render();
     }
 
@@ -71,7 +98,11 @@
       const body = document.createElement('div');
       body.className = 'message__body';
 
-      bubble.append(meta, body);
+      const context = document.createElement('span');
+      context.className = 'message__context';
+      context.textContent = formatContextSummary(message.contextSummary);
+
+      bubble.append(meta, context, body);
       messagesContainer.append(bubble);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
@@ -173,7 +204,11 @@
     providerBadge.className = `badge badge--${getProviderBadgeClass(state.provider.state)}`;
     providerBadge.textContent = state.provider.stateDescription;
 
-    conversationMeta.append(title, meta, providerBadge);
+    const contextBadge = document.createElement('span');
+    contextBadge.className = 'badge';
+    contextBadge.textContent = formatEnabledContext(state.contextOptions);
+
+    conversationMeta.append(title, meta, contextBadge, providerBadge);
   }
 
   function renderMessages() {
@@ -196,6 +231,7 @@
       meta.textContent = `${message.role} | ${formatTimestamp(message.createdAt)}`;
 
       const body = document.createElement('div');
+      body.className = 'message__body';
       body.textContent = message.content;
 
       bubble.append(meta, body);
@@ -226,5 +262,60 @@
       default:
         return 'error';
     }
+  }
+
+  function readContextOptions() {
+    return {
+      includeCurrentFile: includeFileInput.checked,
+      includeSelection: includeSelectionInput.checked,
+      includeRepositoryContext: includeRepositoryInput.checked
+    };
+  }
+
+  function hydrateContextToggles() {
+    includeFileInput.checked = state.contextOptions.includeCurrentFile;
+    includeSelectionInput.checked = state.contextOptions.includeSelection;
+    includeRepositoryInput.checked = state.contextOptions.includeRepositoryContext;
+  }
+
+  function normalizeContextOptions(options) {
+    return {
+      includeCurrentFile: options?.includeCurrentFile ?? true,
+      includeSelection: options?.includeSelection ?? true,
+      includeRepositoryContext: options?.includeRepositoryContext ?? true
+    };
+  }
+
+  function formatEnabledContext(options) {
+    const enabled = [];
+    if (options.includeCurrentFile) {
+      enabled.push('file');
+    }
+    if (options.includeSelection) {
+      enabled.push('selection');
+    }
+    if (options.includeRepositoryContext) {
+      enabled.push('repository');
+    }
+
+    return enabled.length ? `Context: ${enabled.join(', ')}` : 'Context: none';
+  }
+
+  function formatContextSummary(summary) {
+    if (!summary || Object.keys(summary).length === 0) {
+      return 'No context attached';
+    }
+
+    const labels = {
+      'current-file': 'file',
+      selection: 'selection',
+      'neighbor-file': 'neighbor',
+      'repository-signal': 'repository',
+      'conversation-state': 'conversation'
+    };
+
+    return Object.entries(summary)
+      .map(([kind, count]) => `${labels[kind] ?? kind}: ${count}`)
+      .join(' | ');
   }
 })();

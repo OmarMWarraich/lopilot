@@ -31,6 +31,10 @@ export interface SharedContextBundle {
 
 export interface BuildSharedContextOptions {
   conversation?: ConversationContextTurn[];
+  includeCurrentFile?: boolean;
+  includeSelection?: boolean;
+  includeRepositoryContext?: boolean;
+  includeConversationState?: boolean;
   maxCurrentFileChars?: number;
   maxSelectionChars?: number;
   maxNeighborFiles?: number;
@@ -66,11 +70,17 @@ export class SharedContextPipeline {
 
     if (editor) {
       items.push(...this.collectEditorItems(editor, options));
-      items.push(...await this.collectNeighboringFiles(editor, workspaceFolder, options));
+      if (options.includeRepositoryContext !== false) {
+        items.push(...await this.collectNeighboringFiles(editor, workspaceFolder, options));
+      }
     }
 
-    items.push(...await this.collectRepositorySignals(workspaceFolder));
-    items.push(...this.collectConversationState(options.conversation ?? [], options));
+    if (options.includeRepositoryContext !== false) {
+      items.push(...await this.collectRepositorySignals(workspaceFolder));
+    }
+    if (options.includeConversationState !== false) {
+      items.push(...this.collectConversationState(options.conversation ?? [], options));
+    }
 
     return {
       createdAt: new Date().toISOString(),
@@ -102,8 +112,10 @@ export class SharedContextPipeline {
     const currentFileContent = document.getText();
     const maxCurrentFileChars = options.maxCurrentFileChars ?? DEFAULT_MAX_CURRENT_FILE_CHARS;
     const maxSelectionChars = options.maxSelectionChars ?? DEFAULT_MAX_SELECTION_CHARS;
-    const items: SharedContextItem[] = [
-      {
+    const items: SharedContextItem[] = [];
+
+    if (options.includeCurrentFile !== false) {
+      items.push({
         kind: 'current-file',
         title: relativePath,
         uri: relativePath,
@@ -113,10 +125,10 @@ export class SharedContextPipeline {
           lineCount: document.lineCount,
           isDirty: document.isDirty
         }
-      }
-    ];
+      });
+    }
 
-    if (!editor.selection.isEmpty) {
+    if (options.includeSelection !== false && !editor.selection.isEmpty) {
       const selectionContent = document.getText(editor.selection);
       if (selectionContent.trim()) {
         items.push({

@@ -9,7 +9,19 @@ type WebviewMessage =
   | { type: 'ready' }
   | { type: 'newSession' }
   | { type: 'selectSession'; sessionId: string }
-  | { type: 'sendPrompt'; prompt: string };
+  | { type: 'sendPrompt'; prompt: string; contextOptions?: ChatContextOptions };
+
+interface ChatContextOptions {
+  includeCurrentFile: boolean;
+  includeSelection: boolean;
+  includeRepositoryContext: boolean;
+}
+
+const DEFAULT_CHAT_CONTEXT_OPTIONS: ChatContextOptions = {
+  includeCurrentFile: true,
+  includeSelection: true,
+  includeRepositoryContext: true
+};
 
 export class LopilotPanel {
   private static currentPanel: LopilotPanel | undefined;
@@ -93,6 +105,7 @@ export class LopilotPanel {
           }
           case 'sendPrompt': {
             const prompt = message.prompt.trim();
+            const contextOptions = normalizeChatContextOptions(message.contextOptions);
 
             if (!prompt) {
               return;
@@ -151,7 +164,13 @@ export class LopilotPanel {
 
             // Build message history with shared workspace context
             const activeSession = this.sessionManager.getActiveSession();
-            const contextBundle = await this.contextPipeline.build();
+            const contextBundle = await this.contextPipeline.build({
+              conversation: activeSession?.messages ?? [],
+              includeCurrentFile: contextOptions.includeCurrentFile,
+              includeSelection: contextOptions.includeSelection,
+              includeRepositoryContext: contextOptions.includeRepositoryContext,
+              includeConversationState: false
+            });
             const history = (activeSession?.messages ?? []).map((message) => ({
               role: message.role as 'user' | 'assistant',
               content: message.content,
@@ -163,7 +182,11 @@ export class LopilotPanel {
 
             // Create a streaming placeholder and signal start to the webview
             const { messageId } = await this.sessionManager.beginAssistantStream();
-            await this.panel.webview.postMessage({ type: 'stream.start', messageId });
+            await this.panel.webview.postMessage({
+              type: 'stream.start',
+              messageId,
+              contextSummary: summarizeContextBundle(contextBundle)
+            });
 
             let accumulated = '';
             try {
@@ -250,7 +273,21 @@ export class LopilotPanel {
               placeholder="Ask about the current file, a selection, or the repo."
             ></textarea>
             <div class="composer__actions">
-              <p class="composer__hint">Cmd/Ctrl+Enter sends the prompt.</p>
+              <fieldset class="context-toggles" aria-label="Context included with chat prompts">
+                <label class="context-toggle">
+                  <input id="include-file" type="checkbox" checked />
+                  <span>File</span>
+                </label>
+                <label class="context-toggle">
+                  <input id="include-selection" type="checkbox" checked />
+                  <span>Selection</span>
+                </label>
+                <label class="context-toggle">
+                  <input id="include-repository" type="checkbox" checked />
+                  <span>Repository</span>
+                </label>
+              </fieldset>
+              <p class="composer__hint">Cmd/Ctrl+Enter sends</p>
               <button class="button" type="submit">Send</button>
             </div>
           </form>
@@ -262,6 +299,21 @@ export class LopilotPanel {
   </body>
 </html>`;
   }
+}
+
+function normalizeChatContextOptions(options: Partial<ChatContextOptions> | undefined): ChatContextOptions {
+  return {
+    includeCurrentFile: options?.includeCurrentFile ?? DEFAULT_CHAT_CONTEXT_OPTIONS.includeCurrentFile,
+    includeSelection: options?.includeSelection ?? DEFAULT_CHAT_CONTEXT_OPTIONS.includeSelection,
+    includeRepositoryContext: options?.includeRepositoryContext ?? DEFAULT_CHAT_CONTEXT_OPTIONS.includeRepositoryContext
+  };
+}
+
+function summarizeContextBundle(bundle: Awaited<ReturnType<SharedContextPipeline['build']>>): Record<string, number> {
+  return bundle.items.reduce<Record<string, number>>((summary, item) => {
+    summary[item.kind] = (summary[item.kind] ?? 0) + 1;
+    return summary;
+  }, {});
 }
 
 function getNonce(): string {
