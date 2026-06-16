@@ -48,6 +48,7 @@ const DEFAULT_MAX_SUFFIX_CHARS = 2000;
 const MAX_INLINE_COMPLETION_CHARS = 1600;
 const MAX_INLINE_CANDIDATES = 3;
 const PARTIAL_PREVIEW_THROTTLE_MS = 40;
+const INLINE_DIFF_PREVIEW_SCHEME = 'lopilot-inline-preview';
 const DOCUMENT_SELECTOR: vscode.DocumentSelector = [
   { scheme: 'file' },
   { scheme: 'untitled' }
@@ -61,6 +62,7 @@ const CANDIDATE_STRATEGIES = [
 
 export class LopilotInlineCompletionProvider implements vscode.InlineCompletionItemProvider, vscode.Disposable {
   private readonly contextPipeline = new SharedContextPipeline();
+  private readonly diffPreviewContentProvider = new InlineDiffPreviewContentProvider();
   private readonly previewDecoration = vscode.window.createTextEditorDecorationType({
     after: {
       color: new vscode.ThemeColor('editorGhostText.foreground'),
@@ -87,6 +89,7 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
       vscode.commands.registerCommand('lopilot.cycleCompletionCandidate', () => provider.cycleCompletionCandidate()),
       vscode.commands.registerCommand('lopilot.dismissCompletionCandidates', () => provider.dismissCompletionCandidates()),
       vscode.commands.registerCommand('lopilot.acceptNextInlineEdit', () => provider.acceptNextInlineEdit()),
+      vscode.commands.registerCommand('lopilot.previewInlineDiff', () => provider.previewActiveCandidateDiff()),
       vscode.commands.registerCommand('lopilot.recordInlineCompletionAccepted', (sessionId: number) => provider.recordInlineCompletionAccepted(sessionId))
     );
     return provider;
@@ -270,6 +273,31 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
     this.renderCandidatePreview(session);
   }
 
+  public async previewActiveCandidateDiff(): Promise<void> {
+    const session = this.getCurrentCandidateSession();
+    const editor = vscode.window.activeTextEditor;
+    if (!session || !editor) {
+      void vscode.window.showInformationMessage('No active Lopilot inline candidate to preview.');
+      return;
+    }
+
+    const candidate = session.candidates[session.activeIndex];
+    const previewText = applyInlineCandidateToText(editor.document, session.range, candidate);
+    const previewUri = this.diffPreviewContentProvider.setPreview({
+      sourceUri: editor.document.uri,
+      sessionId: session.id,
+      candidateIndex: session.activeIndex,
+      text: previewText
+    });
+    const relativePath = vscode.workspace.asRelativePath(editor.document.uri, false);
+    const title = `Lopilot Inline Preview: ${relativePath}`;
+
+    await vscode.commands.executeCommand('vscode.diff', editor.document.uri, previewUri, title, {
+      preview: false,
+      viewColumn: vscode.ViewColumn.Beside
+    });
+  }
+
   public recordInlineCompletionAccepted(sessionId: number): void {
     if (this.candidateSession?.id === sessionId) {
       this.candidateSession = null;
@@ -280,6 +308,7 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
   public dispose(): void {
     this.cancelActiveCompletion();
     this.previewDecoration.dispose();
+    this.diffPreviewContentProvider.dispose();
   }
 
   private shouldProvideCompletion(document: vscode.TextDocument, position: vscode.Position): boolean {
@@ -576,6 +605,64 @@ export function sanitizeInlineCompletion(value: string): string {
 
 export function getStablePreviewLine(insertText: string): string {
   return insertText.split(/\r?\n/, 1)[0].slice(0, 120);
+}
+
+export function applyInlineCandidateToText(
+  document: Pick<vscode.TextDocument, 'getText' | 'offsetAt'>,
+  range: vscode.Range,
+  candidate: string
+): string {
+  const text = document.getText();
+  const startOffset = document.offsetAt(range.start);
+  const endOffset = document.offsetAt(range.end);
+
+  return `${text.slice(0, startOffset)}${candidate}${text.slice(endOffset)}`;
+}
+
+interface InlineDiffPreviewContent {
+  sourceUri: vscode.Uri;
+  sessionId: number;
+  candidateIndex: number;
+  text: string;
+}
+
+class InlineDiffPreviewContentProvider implements vscode.TextDocumentContentProvider, vscode.Disposable {
+  private readonly didChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
+  private readonly previews = new Map<string, string>();
+  private readonly registration = vscode.workspace.registerTextDocumentContentProvider(INLINE_DIFF_PREVIEW_SCHEME, this);
+
+  public readonly onDidChange = this.didChangeEmitter.event;
+
+  public provideTextDocumentContent(uri: vscode.Uri): string {
+    return this.previews.get(uri.toString()) ?? '';
+  }
+
+  public setPreview(content: InlineDiffPreviewContent): vscode.Uri {
+    const sourcePath = content.sourceUri.path || 'untitled';
+    const previewUri = vscode.Uri.from({
+      scheme: INLINE_DIFF_PREVIEW_SCHEME,
+      path: sourcePath,
+      query: new URLSearchParams({
+        session: String(content.sessionId),
+        candidate: String(content.candidateIndex + 1)
+      }).toString()
+    });
+
+    const key = previewUri.toString();
+    this.previews.set(key, content.text);
+    if (this.previews.size > 50) {
+      const oldestKey = this.previews.keys().next().value as string;
+      this.previews.delete(oldestKey);
+    }
+    this.didChangeEmitter.fire(previewUri);
+    return previewUri;
+  }
+
+  public dispose(): void {
+    this.previews.clear();
+    this.didChangeEmitter.dispose();
+    this.registration.dispose();
+  }
 }
 
 function trimTrailingPartialFence(value: string): string {

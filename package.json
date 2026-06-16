@@ -72,6 +72,11 @@
         "command": "lopilot.acceptNextInlineEdit",
         "title": "Accept Next Inline Edit",
         "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.previewInlineDiff",
+        "title": "Preview Inline Diff",
+        "category": "Lopilot"
       }
     ],
     "menus": {
