@@ -28,6 +28,10 @@ export const ollamaTagsResponse = {
   ]
 };
 
+export const emptyOllamaTagsResponse = {
+  models: []
+};
+
 export function toNdjson(chunks: unknown[]): string {
   return chunks.map((chunk) => JSON.stringify(chunk)).join('\n') + '\n';
 }

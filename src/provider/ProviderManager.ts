@@ -20,9 +20,47 @@ import {
   fetchOllamaModels,
   testEndpoint,
 } from "./LocalDiscovery";
-import { ModelMetadata } from "../adapter";
+import {
+  discoverOllamaCapabilities,
+  HealthResponse,
+  ModelMetadata,
+  OllamaCapabilityDiscovery,
+} from "../adapter";
 
 const STORAGE_KEY = "lopilot.provider.config.v1";
+
+export type ProviderAvailability =
+  | "ready"
+  | "not-selected"
+  | "blocked"
+  | "unsupported"
+  | "unavailable"
+  | "no-models";
+
+export interface ProviderCapabilities {
+  healthCheck: boolean;
+  modelListing: boolean;
+  chatStreaming: boolean;
+  cancellation: boolean;
+  tokenUsage: boolean;
+}
+
+export interface ProviderReadiness {
+  availability: ProviderAvailability;
+  detail: string;
+  provider: ProviderEndpoint | null;
+  health: HealthResponse | null;
+  models: ModelMetadata[];
+  capabilities: ProviderCapabilities;
+}
+
+const EMPTY_PROVIDER_CAPABILITIES: ProviderCapabilities = {
+  healthCheck: false,
+  modelListing: false,
+  chatStreaming: false,
+  cancellation: false,
+  tokenUsage: false,
+};
 
 export class ProviderManager {
   private config: ProviderConfig;
@@ -123,6 +161,45 @@ export class ProviderManager {
    */
   public canSendRequest(): boolean {
     return canSendRequest(this.config);
+  }
+
+  public async getActiveProviderReadiness(): Promise<ProviderReadiness> {
+    const provider = this.getActiveProvider();
+    if (!provider) {
+      return {
+        availability: "not-selected",
+        detail: "No active provider is selected.",
+        provider: null,
+        health: null,
+        models: [],
+        capabilities: EMPTY_PROVIDER_CAPABILITIES,
+      };
+    }
+
+    if (!this.canSendRequest()) {
+      return {
+        availability: "blocked",
+        detail: this.getStateDescription(),
+        provider,
+        health: null,
+        models: [],
+        capabilities: EMPTY_PROVIDER_CAPABILITIES,
+      };
+    }
+
+    if (provider.type !== "ollama") {
+      return {
+        availability: "unsupported",
+        detail: `Provider ${provider.name} does not expose connector capabilities yet.`,
+        provider,
+        health: null,
+        models: [],
+        capabilities: EMPTY_PROVIDER_CAPABILITIES,
+      };
+    }
+
+    const discovery = await discoverOllamaCapabilities(provider.baseUrl);
+    return toProviderReadiness(provider, discovery);
   }
 
   /**
@@ -385,4 +462,37 @@ export class ProviderManager {
     this.config.activeModelId = modelId;
     await this.saveConfig();
   }
+}
+
+function toProviderReadiness(provider: ProviderEndpoint, discovery: OllamaCapabilityDiscovery): ProviderReadiness {
+  if (discovery.health.status === "unavailable") {
+    return {
+      availability: "unavailable",
+      detail: discovery.failure ?? "Ollama is unavailable.",
+      provider,
+      health: discovery.health,
+      models: [],
+      capabilities: discovery.capabilities,
+    };
+  }
+
+  if (discovery.models.length === 0) {
+    return {
+      availability: "no-models",
+      detail: discovery.failure ?? "No local Ollama models are installed.",
+      provider,
+      health: discovery.health,
+      models: [],
+      capabilities: discovery.capabilities,
+    };
+  }
+
+  return {
+    availability: "ready",
+    detail: discovery.health.detail ?? `${discovery.models.length} model(s) available.`,
+    provider,
+    health: discovery.health,
+    models: discovery.models,
+    capabilities: discovery.capabilities,
+  };
 }

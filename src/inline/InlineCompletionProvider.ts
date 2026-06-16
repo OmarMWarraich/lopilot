@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { streamOllamaChat, OllamaChatMessage } from '../adapter/OllamaConnector';
+import { streamOllamaChat, OllamaChatMessage } from '../adapter';
 import { SharedContextPipeline } from '../context';
 import { ProviderManager } from '../provider/ProviderManager';
 

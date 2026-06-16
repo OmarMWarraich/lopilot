@@ -15,6 +15,7 @@ The project is scaffolded around clear module boundaries so chat, inline complet
 - Local provider discovery for common Ollama and LocalAI-compatible endpoints.
 - Explicit remote-provider opt-in before remote requests are allowed.
 - Production-ready local Ollama connector with `/api/chat` streaming, `/api/tags` model metadata, health checks, request timeouts, cancellation, and structured connector errors.
+- Provider readiness checks with capability discovery and graceful messages for unreachable local connectors or Ollama instances with no pulled models.
 - Model selection for active Ollama providers via `Lopilot: Select Model`.
 - Shared context pipeline for current file, active selection, neighboring files, repository signals, and recent conversation state.
 - Typed model-adapter client for completions, chat completions, embeddings, models, health, and provenance endpoints.
@@ -99,7 +100,7 @@ Then run:
 3. `Lopilot: Select Model` and choose an installed model.
 4. `Lopilot: Open Chat` and send a prompt.
 
-When no model is selected, Lopilot falls back to the first available model reported by Ollama. If the stored model id is stale, it is replaced with an available model before streaming.
+When no model is selected, Lopilot falls back to the first available model reported by Ollama. If the stored model id is stale, it is replaced with an available model before streaming. If Ollama is reachable but has no pulled models, chat and model selection show a specific `ollama pull <model>` prompt instead of failing generically.
 
 ## Local-First Provider Model
 

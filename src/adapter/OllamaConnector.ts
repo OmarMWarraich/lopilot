@@ -39,6 +39,23 @@ export interface OllamaChatResult {
   doneReason: string | null;
 }
 
+export interface OllamaCapabilities {
+  healthCheck: boolean;
+  modelListing: boolean;
+  chatStreaming: boolean;
+  cancellation: boolean;
+  tokenUsage: boolean;
+}
+
+export interface OllamaCapabilityDiscovery {
+  provider: 'ollama';
+  baseUrl: string;
+  health: HealthResponse;
+  capabilities: OllamaCapabilities;
+  models: ModelMetadata[];
+  failure: string | null;
+}
+
 export interface OllamaConnectorErrorOptions {
   code: AdapterErrorCode;
   message: string;
@@ -141,6 +158,50 @@ export class OllamaConnector {
     return body.models
       .filter((entry): entry is OllamaTagEntry => typeof entry.name === 'string' && entry.name.length > 0)
       .map(toModelMetadata);
+  }
+
+  public async discoverCapabilities(requestId = createRequestId()): Promise<OllamaCapabilityDiscovery> {
+    const health = await this.getHealth(requestId);
+    if (health.status === 'unavailable') {
+      return {
+        provider: 'ollama',
+        baseUrl: this.baseUrl.origin,
+        health,
+        capabilities: createUnavailableOllamaCapabilities(),
+        models: [],
+        failure: health.detail ?? 'Ollama is not reachable.'
+      };
+    }
+
+    try {
+      const models = await this.listModels();
+      const hasModels = models.length > 0;
+      return {
+        provider: 'ollama',
+        baseUrl: this.baseUrl.origin,
+        health: hasModels ? health : {
+          ...health,
+          status: 'degraded',
+          detail: 'Ollama is reachable, but no local models are installed.'
+        },
+        capabilities: createOllamaCapabilities(hasModels),
+        models,
+        failure: hasModels ? null : 'No local Ollama models are installed. Pull a model with `ollama pull <model>` and try again.'
+      };
+    } catch (error) {
+      return {
+        provider: 'ollama',
+        baseUrl: this.baseUrl.origin,
+        health: {
+          ...health,
+          status: 'degraded',
+          detail: error instanceof Error ? error.message : String(error)
+        },
+        capabilities: createOllamaCapabilities(false),
+        models: [],
+        failure: error instanceof Error ? error.message : 'Could not list Ollama models.'
+      };
+    }
   }
 
   public async streamChat(request: OllamaChatRequest): Promise<OllamaChatResult> {
@@ -363,6 +424,10 @@ export async function getOllamaHealth(baseUrl: string, timeoutMs = DEFAULT_HEALT
   return new OllamaConnector({ baseUrl }).getHealth(createRequestId(), timeoutMs);
 }
 
+export async function discoverOllamaCapabilities(baseUrl: string): Promise<OllamaCapabilityDiscovery> {
+  return new OllamaConnector({ baseUrl }).discoverCapabilities();
+}
+
 interface RequestOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -477,6 +542,26 @@ function buildTokenUsage(promptTokens: number | null, completionTokens: number |
     promptTokens,
     completionTokens,
     totalTokens: promptTokens !== null && completionTokens !== null ? promptTokens + completionTokens : null
+  };
+}
+
+function createOllamaCapabilities(hasModels: boolean): OllamaCapabilities {
+  return {
+    healthCheck: true,
+    modelListing: true,
+    chatStreaming: hasModels,
+    cancellation: hasModels,
+    tokenUsage: hasModels
+  };
+}
+
+function createUnavailableOllamaCapabilities(): OllamaCapabilities {
+  return {
+    healthCheck: false,
+    modelListing: false,
+    chatStreaming: false,
+    cancellation: false,
+    tokenUsage: false
   };
 }
 

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { OllamaConnector, OllamaConnectorError, streamOllamaChat } from '../../src/adapter/OllamaConnector';
-import { ollamaChatChunks, ollamaErrorChunk, ollamaTagsResponse, toNdjson } from '../fixtures/modelResponses';
+import { OllamaConnector, OllamaConnectorError, streamOllamaChat } from '../../src/adapter';
+import { emptyOllamaTagsResponse, ollamaChatChunks, ollamaErrorChunk, ollamaTagsResponse, toNdjson } from '../fixtures/modelResponses';
 
 describe('streamOllamaChat integration harness', () => {
   afterEach(() => {
@@ -59,6 +59,19 @@ describe('streamOllamaChat integration harness', () => {
       requestId: 'request-1',
       status: 'ok',
       connectorId: 'ollama'
+    });
+  });
+
+  it('discovers degraded capabilities when Ollama has no local models', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(emptyOllamaTagsResponse)));
+
+    const discovery = await new OllamaConnector({ baseUrl: 'http://localhost:11434' }).discoverCapabilities('request-2');
+
+    expect(discovery).toMatchObject({
+      health: { status: 'degraded' },
+      capabilities: { healthCheck: true, modelListing: true, chatStreaming: false },
+      models: [],
+      failure: 'No local Ollama models are installed. Pull a model with `ollama pull <model>` and try again.'
     });
   });
 

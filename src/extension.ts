@@ -148,8 +148,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
 
-      const models = await providerManager.listModels();
+      const readiness = await providerManager.getActiveProviderReadiness();
+      if (readiness.availability !== 'ready') {
+        void vscode.window.showWarningMessage(formatProviderReadinessFailure(readiness.availability, readiness.detail));
+        return;
+      }
 
+      const models = readiness.models;
       if (models.length === 0) {
         if (provider.type !== 'ollama') {
           void vscode.window.showWarningMessage(`Model selection is currently supported only for Ollama providers (active: ${provider.name}).`);
@@ -179,3 +184,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export function deactivate(): void {}
+
+function formatProviderReadinessFailure(availability: string, detail: string): string {
+  switch (availability) {
+    case 'unavailable':
+      return `The active provider is unavailable. ${detail}`;
+    case 'no-models':
+      return detail;
+    case 'blocked':
+      return `Provider requests are blocked. ${detail}`;
+    case 'unsupported':
+      return detail;
+    case 'not-selected':
+      return 'No active provider. Use "Lopilot: Select Provider" first.';
+    default:
+      return detail;
+  }
+}

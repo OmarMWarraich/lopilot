@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { streamOllamaChat } from '../adapter/OllamaConnector';
+import { streamOllamaChat } from '../adapter';
 import { SharedContextPipeline } from '../context';
 import { SessionManager } from './SessionManager';
 import { ProviderManager } from '../provider/ProviderManager';
@@ -145,16 +145,20 @@ export class LopilotPanel {
               return;
             }
 
-            // Resolve the model to use and validate active model id
-            const models = await this.providerManager.listModels();
-            if (models.length === 0) {
-              await this.sessionManager.appendAssistantMessage(
-                'No models found on the active Ollama instance. Pull a model with `ollama pull <model>` and try again.'
-              );
+            const readiness = await this.providerManager.getActiveProviderReadiness();
+            if (readiness.availability !== 'ready') {
+              await this.sessionManager.appendAssistantMessage(formatProviderReadinessFailure(readiness.availability, readiness.detail));
               await this.refresh();
               return;
             }
 
+            if (!readiness.capabilities.chatStreaming) {
+              await this.sessionManager.appendAssistantMessage('The active provider is reachable, but it does not currently support streaming chat requests.');
+              await this.refresh();
+              return;
+            }
+
+            const models = readiness.models;
             let modelId = this.providerManager.getActiveModelId();
             // If the stored active model is missing on the instance, fall back to the first available model
             if (!modelId || !models.some((m) => m.id === modelId)) {
@@ -194,7 +198,7 @@ export class LopilotPanel {
                 baseUrl: provider.baseUrl,
                 model: modelId,
                 messages,
-                onDelta: (delta) => {
+                onDelta: (delta: string) => {
                   void this.panel.webview.postMessage({ type: 'stream.delta', messageId, delta });
                 },
               });
@@ -314,6 +318,23 @@ function summarizeContextBundle(bundle: Awaited<ReturnType<SharedContextPipeline
     summary[item.kind] = (summary[item.kind] ?? 0) + 1;
     return summary;
   }, {});
+}
+
+function formatProviderReadinessFailure(availability: string, detail: string): string {
+  switch (availability) {
+    case 'unavailable':
+      return `The active Ollama provider is unavailable. ${detail}`;
+    case 'no-models':
+      return detail;
+    case 'blocked':
+      return `Provider requests are blocked. ${detail}`;
+    case 'unsupported':
+      return detail;
+    case 'not-selected':
+      return 'No active provider is selected. Use "Lopilot: Select Provider" first.';
+    default:
+      return detail;
+  }
 }
 
 function getNonce(): string {
