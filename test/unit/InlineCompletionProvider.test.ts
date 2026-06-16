@@ -35,6 +35,8 @@ vi.mock('vscode', () => ({
 import {
   buildInlineCompletionMessages,
   buildInlineCompletionPromptContext,
+  dedupeInlineCandidates,
+  getNextInlineEdit,
   getStablePreviewLine,
   sanitizeInlineCompletion
 } from '../../src/inline';
@@ -70,6 +72,37 @@ describe('InlineCompletionProvider prompt helpers', () => {
     expect(messages[0].content).toContain('Return only the code text');
     expect(messages[1].content).toContain('<cursor></cursor>');
     expect(messages[1].content).toContain('src/example.ts');
+  });
+
+  it('adds candidate-specific guidance for multiple inline options', () => {
+    const messages = buildInlineCompletionMessages(
+      {
+        languageId: 'typescript',
+        relativePath: 'src/example.ts',
+        prefix: 'const value = ',
+        suffix: ';\n',
+        linePrefix: 'const value = ',
+        sharedContext: 'workspace summary'
+      },
+      {
+        candidateIndex: 2,
+        totalCandidates: 3,
+        strategy: 'Offer a different valid continuation.'
+      }
+    );
+
+    expect(messages[0].content).toContain('Generate candidate 2 of 3');
+    expect(messages[0].content).toContain('Offer a different valid continuation.');
+  });
+
+  it('deduplicates completion candidates while preserving first-seen order', () => {
+    expect(dedupeInlineCandidates(['alpha', 'alpha ', 'beta', '', 'gamma', 'delta'])).toEqual(['alpha', 'beta', 'gamma']);
+  });
+
+  it('splits accept-next-edit chunks by line before falling back to a token', () => {
+    expect(getNextInlineEdit('first line\nsecond line')?.text).toBe('first line\n');
+    expect(getNextInlineEdit('value + 1')?.text).toBe('value ');
+    expect(getNextInlineEdit('')?.text).toBeUndefined();
   });
 
   it('sanitizes markdown fences, cursor tags, leading newlines, and oversized completions', () => {

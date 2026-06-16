@@ -52,6 +52,26 @@
         "command": "lopilot.cancelInlineCompletion",
         "title": "Cancel Inline Completion",
         "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.acceptCompletionCandidate",
+        "title": "Accept Completion Candidate",
+        "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.cycleCompletionCandidate",
+        "title": "Cycle Completion Candidate",
+        "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.dismissCompletionCandidates",
+        "title": "Dismiss Completion Candidates",
+        "category": "Lopilot"
+      },
+      {
+        "command": "lopilot.acceptNextInlineEdit",
+        "title": "Accept Next Inline Edit",
+        "category": "Lopilot"
       }
     ],
     "menus": {

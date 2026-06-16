@@ -8,7 +8,7 @@ The project is scaffolded around clear module boundaries so chat, inline complet
 
 - VS Code extension scaffold with command registration, status bar integration, launch configuration, and esbuild bundling.
 - Webview chat panel with sessions persisted in VS Code `workspaceState`.
-- Inline editor completions for active Ollama providers, with request cancellation, partial token preview decorations, and stable final ghost-text rendering.
+- Inline editor completions for active Ollama providers, with request cancellation, multiple candidates, partial token preview decorations, and stable final ghost-text rendering.
 - `Ask About Selection` command that starts a chat session from the active editor selection.
 - Local-first provider resolution with explicit lifecycle states for no provider, local available, local configured, remote configured but blocked, and remote enabled.
 - Local provider discovery for common Ollama and LocalAI-compatible endpoints.
@@ -66,6 +66,10 @@ Available commands:
 - `Lopilot: Enable Remote Providers` — explicitly enables remote requests after user confirmation.
 - `Lopilot: Select Model` — chooses a model from the active provider, currently Ollama only.
 - `Lopilot: Cancel Inline Completion` — cancels the active inline completion stream and clears partial preview text.
+- `Lopilot: Accept Completion Candidate` — accepts the active Lopilot inline candidate.
+- `Lopilot: Cycle Completion Candidate` — previews the next generated inline candidate.
+- `Lopilot: Dismiss Completion Candidates` — clears the active candidate session.
+- `Lopilot: Accept Next Inline Edit` — accepts the next line or token chunk from the active candidate and keeps the remainder available.
 
 ## Ollama Workflow
 
@@ -159,7 +163,7 @@ CI runs the same `npm test` entry point in GitHub Actions using `xvfb-run` for V
 ## Project Layout
 
 - `src/extension.ts` — extension activation, command registration, status bar wiring.
-- `src/inline/` — inline completion provider, prompt assembly, cancellation, and editor preview rendering.
+- `src/inline/` — inline completion provider, prompt assembly, candidate workflows, cancellation, and editor preview rendering.
 - `src/chat/` — chat panel and session persistence.
 - `src/provider/` — provider discovery, lifecycle state, model listing, and local-first routing.
 - `src/context/` — shared request-scoped context collection.

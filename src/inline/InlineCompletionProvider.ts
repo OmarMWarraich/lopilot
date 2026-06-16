@@ -27,13 +27,36 @@ interface ActiveInlineRun {
   position: vscode.Position;
 }
 
+interface InlineCandidateSession {
+  id: number;
+  documentUri: string;
+  documentVersion: number;
+  range: vscode.Range;
+  position: vscode.Position;
+  candidates: string[];
+  activeIndex: number;
+}
+
+interface InlineCompletionMessageOptions {
+  candidateIndex?: number;
+  totalCandidates?: number;
+  strategy?: string;
+}
+
 const DEFAULT_MAX_PREFIX_CHARS = 5000;
 const DEFAULT_MAX_SUFFIX_CHARS = 2000;
 const MAX_INLINE_COMPLETION_CHARS = 1600;
+const MAX_INLINE_CANDIDATES = 3;
 const PARTIAL_PREVIEW_THROTTLE_MS = 40;
 const DOCUMENT_SELECTOR: vscode.DocumentSelector = [
   { scheme: 'file' },
   { scheme: 'untitled' }
+];
+
+const CANDIDATE_STRATEGIES = [
+  'Prefer the most likely concise continuation.',
+  'Offer a slightly more explicit alternative without adding unrelated code.',
+  'Offer a compact alternative that preserves the surrounding style.'
 ];
 
 export class LopilotInlineCompletionProvider implements vscode.InlineCompletionItemProvider, vscode.Disposable {
@@ -47,7 +70,9 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
   });
   private activeRun: ActiveInlineRun | null = null;
+  private candidateSession: InlineCandidateSession | null = null;
   private runSequence = 0;
+  private candidateSessionSequence = 0;
   private lastPreviewUpdate = 0;
 
   public constructor(private readonly providerManager: ProviderManager) {}
@@ -57,7 +82,12 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
     context.subscriptions.push(
       provider,
       vscode.languages.registerInlineCompletionItemProvider(DOCUMENT_SELECTOR, provider),
-      vscode.commands.registerCommand('lopilot.cancelInlineCompletion', () => provider.cancelActiveCompletion())
+      vscode.commands.registerCommand('lopilot.cancelInlineCompletion', () => provider.dismissCompletionCandidates()),
+      vscode.commands.registerCommand('lopilot.acceptCompletionCandidate', () => provider.acceptActiveCandidate()),
+      vscode.commands.registerCommand('lopilot.cycleCompletionCandidate', () => provider.cycleCompletionCandidate()),
+      vscode.commands.registerCommand('lopilot.dismissCompletionCandidates', () => provider.dismissCompletionCandidates()),
+      vscode.commands.registerCommand('lopilot.acceptNextInlineEdit', () => provider.acceptNextInlineEdit()),
+      vscode.commands.registerCommand('lopilot.recordInlineCompletionAccepted', (sessionId: number) => provider.recordInlineCompletionAccepted(sessionId))
     );
     return provider;
   }
@@ -121,7 +151,11 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
       }
 
       const promptContext = buildInlineCompletionPromptContext(document, position, this.contextPipeline.formatSystemMessage(contextBundle));
-      const messages = buildInlineCompletionMessages(promptContext);
+      const messages = buildInlineCompletionMessages(promptContext, {
+        candidateIndex: 1,
+        totalCandidates: MAX_INLINE_CANDIDATES,
+        strategy: CANDIDATE_STRATEGIES[0]
+      });
 
       const completion = await streamOllamaChat({
         baseUrl: provider.baseUrl,
@@ -143,9 +177,13 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
         return undefined;
       }
 
-      const item = new vscode.InlineCompletionItem(insertText, requestRange);
-      item.filterText = insertText;
-      return new vscode.InlineCompletionList([item]);
+      const candidates = await this.buildCompletionCandidates(provider.baseUrl, modelId, promptContext, insertText, abortController.signal);
+      if (token.isCancellationRequested || this.activeRun?.id !== run.id || candidates.length === 0) {
+        return undefined;
+      }
+
+      const session = this.createCandidateSession(document, requestRange, position, candidates);
+      return new vscode.InlineCompletionList(candidates.map((candidate, index) => this.createInlineCompletionItem(candidate, requestRange, session.id, index)));
     } catch (error) {
       if (token.isCancellationRequested || abortController.signal.aborted || isAbortError(error)) {
         return undefined;
@@ -169,6 +207,74 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
     this.activeRun.abortController.abort();
     this.activeRun = null;
     this.clearPartialPreview();
+  }
+
+  public async acceptActiveCandidate(): Promise<void> {
+    const session = this.getCurrentCandidateSession();
+    if (!session) {
+      return;
+    }
+
+    await this.applyCandidateText(session, session.candidates[session.activeIndex], true);
+  }
+
+  public cycleCompletionCandidate(): void {
+    const session = this.getCurrentCandidateSession();
+    if (!session || session.candidates.length < 2) {
+      return;
+    }
+
+    session.activeIndex = (session.activeIndex + 1) % session.candidates.length;
+    this.renderCandidatePreview(session);
+  }
+
+  public dismissCompletionCandidates(): void {
+    this.cancelActiveCompletion();
+    this.candidateSession = null;
+    this.clearPartialPreview();
+  }
+
+  public async acceptNextInlineEdit(): Promise<void> {
+    const session = this.getCurrentCandidateSession();
+    if (!session) {
+      return;
+    }
+
+    const activeCandidate = session.candidates[session.activeIndex];
+    const nextEdit = getNextInlineEdit(activeCandidate);
+    if (!nextEdit) {
+      return;
+    }
+
+    const applied = await this.applyCandidateText(session, nextEdit.text, false);
+    if (!applied) {
+      return;
+    }
+    const remaining = activeCandidate.slice(nextEdit.text.length).replace(/^\r?\n/, '');
+    if (!remaining.trim()) {
+      this.dismissCompletionCandidates();
+      return;
+    }
+
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      this.dismissCompletionCandidates();
+      return;
+    }
+
+    const position = editor.selection.active;
+    session.documentVersion = editor.document.version;
+    session.position = position;
+    session.range = new vscode.Range(position, position);
+    session.candidates[session.activeIndex] = remaining;
+    this.renderCandidatePreview(session);
+  }
+
+  public recordInlineCompletionAccepted(sessionId: number): void {
+    if (this.candidateSession?.id === sessionId) {
+      this.candidateSession = null;
+      this.clearPartialPreview();
+    }
   }
 
   public dispose(): void {
@@ -231,6 +337,125 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
       editor.setDecorations(this.previewDecoration, []);
     }
   }
+
+  private async buildCompletionCandidates(
+    baseUrl: string,
+    modelId: string,
+    context: InlineCompletionPromptContext,
+    primaryCandidate: string,
+    signal: AbortSignal
+  ): Promise<string[]> {
+    const candidates = [primaryCandidate];
+
+    for (let index = 1; index < MAX_INLINE_CANDIDATES; index += 1) {
+      if (signal.aborted) {
+        break;
+      }
+
+      const completion = await streamOllamaChat({
+        baseUrl,
+        model: modelId,
+        messages: buildInlineCompletionMessages(context, {
+          candidateIndex: index + 1,
+          totalCandidates: MAX_INLINE_CANDIDATES,
+          strategy: CANDIDATE_STRATEGIES[index]
+        }),
+        signal,
+        onDelta: () => undefined
+      });
+      const candidate = sanitizeInlineCompletion(completion);
+      if (candidate) {
+        candidates.push(candidate);
+      }
+    }
+
+    return dedupeInlineCandidates(candidates);
+  }
+
+  private createCandidateSession(
+    document: vscode.TextDocument,
+    range: vscode.Range,
+    position: vscode.Position,
+    candidates: string[]
+  ): InlineCandidateSession {
+    const session = {
+      id: this.candidateSessionSequence += 1,
+      documentUri: document.uri.toString(),
+      documentVersion: document.version,
+      range,
+      position,
+      candidates,
+      activeIndex: 0
+    };
+    this.candidateSession = session;
+    return session;
+  }
+
+  private createInlineCompletionItem(candidate: string, range: vscode.Range, sessionId: number, candidateIndex: number): vscode.InlineCompletionItem {
+    const item = new vscode.InlineCompletionItem(candidate, range, {
+      command: 'lopilot.recordInlineCompletionAccepted',
+      title: 'Record Accepted Lopilot Inline Completion',
+      arguments: [sessionId, candidateIndex]
+    });
+    item.filterText = candidate;
+    return item;
+  }
+
+  private getCurrentCandidateSession(): InlineCandidateSession | undefined {
+    const session = this.candidateSession;
+    const editor = vscode.window.activeTextEditor;
+    if (!session || !editor || editor.document.uri.toString() !== session.documentUri || editor.document.version !== session.documentVersion) {
+      return undefined;
+    }
+
+    return session;
+  }
+
+  private renderCandidatePreview(session: InlineCandidateSession): void {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.uri.toString() !== session.documentUri || editor.document.version !== session.documentVersion) {
+      this.clearPartialPreview();
+      return;
+    }
+
+    const candidate = session.candidates[session.activeIndex];
+    const label = session.candidates.length > 1 ? ` (${session.activeIndex + 1}/${session.candidates.length})` : '';
+    editor.setDecorations(this.previewDecoration, [
+      {
+        range: new vscode.Range(session.position, session.position),
+        renderOptions: {
+          after: {
+            contentText: `${getStablePreviewLine(candidate)}${label}`
+          }
+        }
+      }
+    ]);
+  }
+
+  private async applyCandidateText(session: InlineCandidateSession, text: string, clearSession: boolean): Promise<boolean> {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.uri.toString() !== session.documentUri || editor.document.version !== session.documentVersion) {
+      this.dismissCompletionCandidates();
+      return false;
+    }
+
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(editor.document.uri, session.range, text);
+    const applied = await vscode.workspace.applyEdit(edit);
+    if (!applied) {
+      return false;
+    }
+
+    const nextPosition = editor.document.positionAt(editor.document.offsetAt(session.range.start) + text.length);
+    editor.selection = new vscode.Selection(nextPosition, nextPosition);
+    this.clearPartialPreview();
+
+    if (clearSession) {
+      this.candidateSession = null;
+    }
+
+    return true;
+  }
 }
 
 export function buildInlineCompletionPromptContext(
@@ -257,7 +482,14 @@ export function buildInlineCompletionPromptContext(
   };
 }
 
-export function buildInlineCompletionMessages(context: InlineCompletionPromptContext): OllamaChatMessage[] {
+export function buildInlineCompletionMessages(
+  context: InlineCompletionPromptContext,
+  options: InlineCompletionMessageOptions = {}
+): OllamaChatMessage[] {
+  const candidateGuidance = options.candidateIndex && options.totalCandidates
+    ? `Generate candidate ${options.candidateIndex} of ${options.totalCandidates}. ${options.strategy ?? ''}`.trim()
+    : 'Generate the single best candidate.';
+
   return [
     {
       role: 'system',
@@ -265,7 +497,8 @@ export function buildInlineCompletionMessages(context: InlineCompletionPromptCon
         'You are Lopilot, a local-first inline code completion engine inside VS Code.',
         'Return only the code text that should be inserted at <cursor>.',
         'Do not wrap the answer in Markdown. Do not explain. Do not repeat existing prefix text.',
-        'Keep the suggestion short and syntactically compatible with the surrounding file.'
+        'Keep the suggestion short and syntactically compatible with the surrounding file.',
+        candidateGuidance
       ].join('\n')
     },
     {
@@ -287,6 +520,45 @@ export function buildInlineCompletionMessages(context: InlineCompletionPromptCon
       ].join('\n')
     }
   ];
+}
+
+export interface NextInlineEdit {
+  text: string;
+}
+
+export function dedupeInlineCandidates(candidates: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+
+  for (const candidate of candidates) {
+    const normalized = candidate.replace(/\s+/g, ' ').trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    deduped.push(candidate);
+  }
+
+  return deduped.slice(0, MAX_INLINE_CANDIDATES);
+}
+
+export function getNextInlineEdit(candidate: string): NextInlineEdit | undefined {
+  if (!candidate) {
+    return undefined;
+  }
+
+  const newlineMatch = candidate.match(/^.*\r?\n/);
+  if (newlineMatch?.[0] !== undefined) {
+    return { text: newlineMatch[0] };
+  }
+
+  const wordMatch = candidate.match(/^\s*\S+\s*/);
+  if (!wordMatch) {
+    return undefined;
+  }
+
+  return { text: wordMatch[0] };
 }
 
 export function sanitizeInlineCompletion(value: string): string {

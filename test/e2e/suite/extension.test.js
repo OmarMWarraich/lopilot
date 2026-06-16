@@ -15,5 +15,9 @@ suite('Lopilot E2E smoke suite', () => {
     assert.ok(commands.includes('lopilot.askAboutSelection'));
     assert.ok(commands.includes('lopilot.selectModel'));
     assert.ok(commands.includes('lopilot.cancelInlineCompletion'));
+    assert.ok(commands.includes('lopilot.acceptCompletionCandidate'));
+    assert.ok(commands.includes('lopilot.cycleCompletionCandidate'));
+    assert.ok(commands.includes('lopilot.dismissCompletionCandidates'));
+    assert.ok(commands.includes('lopilot.acceptNextInlineEdit'));
   });
 });
