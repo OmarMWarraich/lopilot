@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { streamOllamaChat } from '../../src/adapter/OllamaConnector';
-import { ollamaChatChunks, ollamaErrorChunk, toNdjson } from '../fixtures/modelResponses';
+import { OllamaConnector, OllamaConnectorError, streamOllamaChat } from '../../src/adapter/OllamaConnector';
+import { ollamaChatChunks, ollamaErrorChunk, ollamaTagsResponse, toNdjson } from '../fixtures/modelResponses';
 
 describe('streamOllamaChat integration harness', () => {
   afterEach(() => {
@@ -23,7 +23,7 @@ describe('streamOllamaChat integration harness', () => {
     expect(response).toBe('Hello, local model.');
     expect(deltas).toEqual(['Hello', ', local', ' model.']);
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:11434/api/chat',
+      new URL('http://localhost:11434/api/chat'),
       expect.objectContaining({ method: 'POST' })
     );
   });
@@ -37,6 +37,55 @@ describe('streamOllamaChat integration harness', () => {
       messages: [{ role: 'user', content: 'Say hello' }],
       onDelta: () => undefined
     })).rejects.toThrow('Ollama error: model not found');
+  });
+
+  it('lists Ollama models with shared metadata fields', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(ollamaTagsResponse)));
+
+    const models = await new OllamaConnector({ baseUrl: 'http://localhost:11434' }).listModels();
+
+    expect(models).toEqual([
+      expect.objectContaining({ id: 'llama3.2:latest', quantization: 'Q4_K_M', maxTokens: 4096 }),
+      expect.objectContaining({ id: 'qwen2.5-coder:14b', quantization: 'Q5_K_M', maxTokens: 8192 })
+    ]);
+  });
+
+  it('reports health from the Ollama tags endpoint', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(ollamaTagsResponse)));
+
+    const health = await new OllamaConnector({ baseUrl: 'http://localhost:11434' }).getHealth('request-1');
+
+    expect(health).toMatchObject({
+      requestId: 'request-1',
+      status: 'ok',
+      connectorId: 'ollama'
+    });
+  });
+
+  it('throws structured connector errors for malformed stream events', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => createNdjsonResponse('{not-json}\n')));
+
+    await expect(streamOllamaChat({
+      baseUrl: 'http://localhost:11434',
+      model: 'mock-model',
+      messages: [{ role: 'user', content: 'Say hello' }],
+      onDelta: () => undefined
+    })).rejects.toMatchObject({
+      name: 'OllamaConnectorError',
+      code: 'malformed_event',
+      retryable: true
+    });
+  });
+
+  it('throws structured connector errors for non-OK HTTP responses', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('missing', { status: 404 })));
+
+    await expect(new OllamaConnector({ baseUrl: 'http://localhost:11434' }).listModels()).rejects.toMatchObject({
+      name: 'OllamaConnectorError',
+      code: 'unsupported_feature',
+      status: 404,
+      retryable: false
+    });
   });
 });
 
