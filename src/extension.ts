@@ -4,13 +4,16 @@ import * as vscode from 'vscode';
 import { LopilotPanel } from './chat/LopilotPanel';
 import { SessionManager } from './chat/SessionManager';
 import { LopilotInlineCompletionProvider } from './inline';
-import { ProviderManager } from './provider/ProviderManager';
+import { ProviderAvailability, ProviderManager } from './provider/ProviderManager';
+
+const LOPILOT_SETTINGS_SECTION = 'lopilot';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const sessionManager = new SessionManager(context.workspaceState);
   await sessionManager.ensureSession();
 
   const providerManager = new ProviderManager(context.workspaceState);
+  await providerManager.applyPreferences();
   LopilotInlineCompletionProvider.register(context, providerManager);
 
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -177,7 +180,65 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       if (selected) {
         await providerManager.setActiveModelId(selected.model.id);
+        await vscode.workspace.getConfiguration(LOPILOT_SETTINGS_SECTION).update('defaultModel', selected.model.id, vscode.ConfigurationTarget.Workspace);
         void vscode.window.showInformationMessage(`Active model: ${selected.label}`);
+      }
+    }),
+    vscode.commands.registerCommand('lopilot.configureLocalBackend', async () => {
+      const backend = await vscode.window.showQuickPick(
+        [{ label: 'Ollama', description: 'Local Ollama server', value: 'ollama' as const }],
+        { placeHolder: 'Choose a local backend' }
+      );
+
+      if (!backend) {
+        return;
+      }
+
+      const preferences = providerManager.getPreferences();
+      const baseUrl = await vscode.window.showInputBox({
+        prompt: 'Ollama base URL',
+        value: preferences.ollamaBaseUrl,
+        placeHolder: 'http://localhost:11434',
+        validateInput: (value) => validateHttpUrl(value)
+      });
+
+      if (!baseUrl) {
+        return;
+      }
+
+      const configuration = vscode.workspace.getConfiguration(LOPILOT_SETTINGS_SECTION);
+      await configuration.update('localBackend', backend.value, vscode.ConfigurationTarget.Workspace);
+      await configuration.update('ollamaBaseUrl', baseUrl.trim().replace(/\/+$/, ''), vscode.ConfigurationTarget.Workspace);
+      const endpoint = await providerManager.applyPreferences({ force: true });
+      updateStatusBar();
+
+      if (!endpoint) {
+        void vscode.window.showWarningMessage('Could not configure the selected local backend.');
+        return;
+      }
+
+      const readiness = await providerManager.getActiveProviderReadiness();
+      if (readiness.availability !== 'ready') {
+        void vscode.window.showWarningMessage(formatProviderReadinessFailure(readiness.availability, readiness.detail));
+        return;
+      }
+
+      const selectedModel = await vscode.window.showQuickPick(
+        readiness.models.map((model) => ({
+          label: model.displayName,
+          description: [model.quantization, model.maxTokens ? `~${model.maxTokens} tokens (est.)` : null].filter(Boolean).join(' · '),
+          picked: model.id === providerManager.getActiveModelId(),
+          model
+        })),
+        { placeHolder: 'Choose the default local model' }
+      );
+
+      if (selectedModel) {
+        await providerManager.setActiveModelId(selectedModel.model.id);
+        await configuration.update('defaultModel', selectedModel.model.id, vscode.ConfigurationTarget.Workspace);
+        void vscode.window.showInformationMessage(`Configured ${backend.label} with default model ${selectedModel.label}.`);
+      } else {
+        void vscode.window.showInformationMessage(`Configured ${backend.label}. Lopilot will use the first available model until you choose a default.`);
       }
     })
   );
@@ -185,7 +246,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 export function deactivate(): void {}
 
-function formatProviderReadinessFailure(availability: import('./provider/ProviderManager').ProviderAvailability, detail: string): string {
+function formatProviderReadinessFailure(availability: ProviderAvailability, detail: string): string {
   switch (availability) {
     case 'unavailable':
       return `The active provider is unavailable. ${detail}`;
@@ -199,5 +260,17 @@ function formatProviderReadinessFailure(availability: import('./provider/Provide
       return 'No active provider. Use "Lopilot: Select Provider" first.';
     default:
       return detail;
+  }
+}
+
+function validateHttpUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return 'Use an http or https URL.';
+    }
+    return undefined;
+  } catch {
+    return 'Enter a valid URL.';
   }
 }
