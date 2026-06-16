@@ -287,7 +287,7 @@ export class LopilotPanel {
                   <span>Repository</span>
                 </label>
               </fieldset>
-              <p class="composer__hint">Cmd/Ctrl+Enter sends</p>
+              <p class="composer__hint">Cmd/Ctrl+Enter sends the prompt.</p>
               <button class="button" type="submit">Send</button>
             </div>
           </form>
