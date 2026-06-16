@@ -29,10 +29,16 @@ vi.mock('vscode', () => ({
   },
   DecorationRangeBehavior: {
     ClosedClosed: 1
+  },
+  EventEmitter: class EventEmitter {
+    public readonly event = () => ({ dispose: () => undefined });
+    public fire() {}
+    public dispose() {}
   }
 }));
 
 import {
+  applyInlineCandidateToText,
   buildInlineCompletionMessages,
   buildInlineCompletionPromptContext,
   dedupeInlineCandidates,
@@ -118,6 +124,16 @@ describe('InlineCompletionProvider prompt helpers', () => {
   it('keeps partial preview to a stable single editor line', () => {
     expect(getStablePreviewLine('first line\nsecond line')).toBe('first line');
     expect(getStablePreviewLine('x'.repeat(140))).toHaveLength(120);
+  });
+
+  it('applies an inline candidate to document text for diff previews', () => {
+    const document = createDocumentDouble('const value = ;\nconsole.log(value);', 'typescript');
+    const range = {
+      start: { line: 0, character: 'const value = '.length },
+      end: { line: 0, character: 'const value = '.length }
+    };
+
+    expect(applyInlineCandidateToText(document as never, range as never, '42')).toBe('const value = 42;\nconsole.log(value);');
   });
 });
 

@@ -9,6 +9,7 @@ The project is scaffolded around clear module boundaries so chat, inline complet
 - VS Code extension scaffold with command registration, status bar integration, launch configuration, and esbuild bundling.
 - Webview chat panel with sessions persisted in VS Code `workspaceState`.
 - Inline editor completions for active Ollama providers, with request cancellation, multiple candidates, partial token preview decorations, and stable final ghost-text rendering.
+- Native diff previews for active inline candidates before accepting generated changes.
 - `Ask About Selection` command that starts a chat session from the active editor selection.
 - Local-first provider resolution with explicit lifecycle states for no provider, local available, local configured, remote configured but blocked, and remote enabled.
 - Local provider discovery for common Ollama and LocalAI-compatible endpoints.
@@ -70,6 +71,7 @@ Available commands:
 - `Lopilot: Cycle Completion Candidate` — previews the next generated inline candidate.
 - `Lopilot: Dismiss Completion Candidates` — clears the active candidate session.
 - `Lopilot: Accept Next Inline Edit` — accepts the next line or token chunk from the active candidate and keeps the remainder available.
+- `Lopilot: Preview Inline Diff` — opens the active inline candidate in VS Code's diff editor before accepting it.
 
 ## Ollama Workflow
 
