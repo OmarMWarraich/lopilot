@@ -648,7 +648,12 @@ class InlineDiffPreviewContentProvider implements vscode.TextDocumentContentProv
       }).toString()
     });
 
-    this.previews.set(previewUri.toString(), content.text);
+    const key = previewUri.toString();
+    this.previews.set(key, content.text);
+    if (this.previews.size > 50) {
+      const oldestKey = this.previews.keys().next().value as string;
+      this.previews.delete(oldestKey);
+    }
     this.didChangeEmitter.fire(previewUri);
     return previewUri;
   }
