@@ -1,8 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   OllamaConnector,
-  OllamaConnectorError,
   streamOllamaChat,
   fetchOllamaModels,
   getOllamaHealth,
@@ -414,16 +413,24 @@ describe('Ollama adapter streaming and event handling integration', () => {
       );
     });
 
-    it('includes proper content-type and headers in requests', async () => {
-      const fetchMock = vi.fn(async () => Response.json(ollamaTagsResponse));
+    it('includes JSON content-type header in chat requests', async () => {
+      const fetchMock = vi.fn(async () => createNdjsonResponse(toNdjson([
+        { message: { role: 'assistant', content: 'ok' }, done: true }
+      ])));
       vi.stubGlobal('fetch', fetchMock);
 
-      await new OllamaConnector({ baseUrl: 'http://localhost:11434' }).listModels();
+      await streamOllamaChat({
+        baseUrl: 'http://localhost:11434',
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'test' }],
+        onDelta: () => undefined
+      });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.any(URL),
+        new URL('http://localhost:11434/api/chat'),
         expect.objectContaining({
-          method: 'GET'
+          method: 'POST',
+          headers: expect.objectContaining({ 'content-type': 'application/json' })
         })
       );
     });
