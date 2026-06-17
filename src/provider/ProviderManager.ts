@@ -196,6 +196,7 @@ export class ProviderManager {
       return this.getActiveProvider();
     }
 
+    const configuration = vscode.workspace.getConfiguration(SETTINGS_SECTION);
     const preferences = this.getPreferences();
     if (preferences.localBackend !== "ollama") {
       return this.getActiveProvider();
@@ -203,9 +204,11 @@ export class ProviderManager {
 
     const endpoint = this.upsertConfiguredOllamaProvider(preferences.ollamaBaseUrl);
     this.config.activeProviderId = endpoint.id;
-    if (preferences.defaultModel) {
+
+    if (hasConfiguredValue(configuration, "defaultModel")) {
       this.config.activeModelId = preferences.defaultModel;
     }
+
     this.config.lifecycleState = deriveProviderLifecycleState(this.config);
     await this.saveConfig();
     return endpoint;
@@ -512,7 +515,7 @@ export class ProviderManager {
   }
 
   private upsertConfiguredOllamaProvider(baseUrl: string): ProviderEndpoint {
-    const existing = [...this.config.configuredLocal, ...this.config.discoveredLocal].find((provider) => {
+    const existing = this.config.configuredLocal.find((provider) => {
       return provider.type === "ollama" && normalizeBaseUrl(provider.baseUrl) === baseUrl;
     });
 
