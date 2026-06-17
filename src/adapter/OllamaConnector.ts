@@ -1,4 +1,5 @@
 import { AdapterErrorCode, HealthResponse, ModelMetadata, TokenUsage } from './types';
+import { getMockModels, isE2EMockMode, streamMockChat } from '../testing/mockRuntime';
 
 export interface OllamaChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -124,6 +125,16 @@ export class OllamaConnector {
   }
 
   public async getHealth(requestId = createRequestId(), timeoutMs = DEFAULT_HEALTH_TIMEOUT_MS): Promise<HealthResponse> {
+    if (isE2EMockMode()) {
+      return {
+        version: 'ollama-native',
+        requestId,
+        status: 'ok',
+        connectorId: 'ollama',
+        detail: `${getMockModels().length} model(s) available`
+      };
+    }
+
     try {
       const response = await this.getJson<OllamaTagsResponse>('/api/tags', { timeoutMs });
       return {
@@ -145,6 +156,10 @@ export class OllamaConnector {
   }
 
   public async listModels(timeoutMs = DEFAULT_MODEL_TIMEOUT_MS): Promise<ModelMetadata[]> {
+    if (isE2EMockMode()) {
+      return getMockModels();
+    }
+
     const body = await this.getJson<OllamaTagsResponse>('/api/tags', { timeoutMs });
 
     if (!Array.isArray(body.models)) {
@@ -205,6 +220,10 @@ export class OllamaConnector {
   }
 
   public async streamChat(request: OllamaChatRequest): Promise<OllamaChatResult> {
+    if (isE2EMockMode()) {
+      return streamMockChat(request);
+    }
+
     const response = await this.postJsonStream('/api/chat', {
       model: request.model,
       messages: request.messages,
