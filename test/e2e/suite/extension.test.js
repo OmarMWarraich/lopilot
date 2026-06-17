@@ -78,13 +78,15 @@ suite('Lopilot E2E smoke suite', () => {
     await extension.activate();
 
     const document = await vscode.workspace.openTextDocument(vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, 'main.ts'));
-    const editor = await vscode.window.showTextDocument(document);
-    const completionLine = document.lineAt(document.lineCount - 1);
-    const position = new vscode.Position(document.lineCount - 1, completionLine.text.length);
+    const computeOffset = document.getText().lastIndexOf('compute');
+    assert.ok(computeOffset >= 0);
+    const completionOffset = computeOffset + 'compute'.length;
+    const position = document.positionAt(completionOffset);
 
-    editor.selection = new vscode.Selection(position, position);
-
-    const items = await vscode.commands.executeCommand('lopilot.debug.requestInlineCompletions');
+    const items = await vscode.commands.executeCommand('lopilot.debug.requestInlineCompletions', {
+      uri: document.uri.toString(),
+      position: { line: position.line, character: position.character }
+    });
     assert.ok(items.length > 0);
     assert.equal(items[0].insertText, '42');
   });
