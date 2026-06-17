@@ -343,9 +343,9 @@ function toConnectionIndicator(lifecycleState: import('../provider/ProviderState
     case 'local-configured':
       return { state: 'local', label: 'Local' };
     case 'remote-configured-blocked':
-      return { state: 'remote-blocked', label: 'Remote blocked' };
+      return { state: 'remote-blocked', label: 'Remote Blocked' };
     case 'remote-enabled':
-      return { state: 'remote-enabled', label: 'Remote enabled' };
+      return { state: 'remote-enabled', label: 'Remote' };
     case 'local-available':
     case 'no-provider':
     default:

@@ -312,7 +312,20 @@
   }
 
   function getProviderIndicator(provider) {
-    return provider?.indicator ?? { state: provider?.canSendRequest ? 'local' : 'offline', label: provider?.canSendRequest ? 'Local' : 'Offline' };
+    if (provider?.indicator) {
+      return provider.indicator;
+    }
+
+    switch (provider?.state) {
+      case 'local-configured':
+        return { state: 'local', label: 'Local' };
+      case 'remote-enabled':
+        return { state: 'remote-enabled', label: 'Remote' };
+      case 'remote-configured-blocked':
+        return { state: 'remote-blocked', label: 'Remote Blocked' };
+      default:
+        return { state: 'offline', label: 'Offline' };
+    }
   }
 
   function readContextOptions() {
