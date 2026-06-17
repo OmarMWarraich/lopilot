@@ -74,7 +74,8 @@ export class LopilotPanel {
           state: this.providerManager.getLifecycleState(),
           stateDescription: this.providerManager.getStateDescription(),
           canSendRequest: this.providerManager.canSendRequest(),
-          activeProvider: this.providerManager.getActiveProvider()
+          activeProvider: this.providerManager.getActiveProvider(),
+          indicator: toConnectionIndicator(this.providerManager.getLifecycleState())
         }
       }
     });
@@ -248,7 +249,7 @@ export class LopilotPanel {
         </div>
         <div class="topbar__badges">
           <span class="badge">Workspace scoped</span>
-          <span class="badge badge--accent">Local only</span>
+          <span id="connection-indicator" class="badge badge--warning">Offline</span>
         </div>
       </header>
 
@@ -291,7 +292,7 @@ export class LopilotPanel {
                   <span>Repository</span>
                 </label>
               </fieldset>
-              <p class="composer__hint">Cmd/Ctrl+Enter sends the prompt.</p>
+              <p id="composer-hint" class="composer__hint">Cmd/Ctrl+Enter sends the prompt.</p>
               <button class="button" type="submit">Send</button>
             </div>
           </form>
@@ -334,6 +335,21 @@ function formatProviderReadinessFailure(availability: import('../provider/Provid
       return 'No active provider is selected. Use "Lopilot: Select Provider" first.';
     default:
       return detail;
+  }
+}
+
+function toConnectionIndicator(lifecycleState: import('../provider/ProviderState').ProviderLifecycleState): { state: string; label: string } {
+  switch (lifecycleState) {
+    case 'local-configured':
+      return { state: 'local', label: 'Local' };
+    case 'remote-configured-blocked':
+      return { state: 'remote-blocked', label: 'Remote blocked' };
+    case 'remote-enabled':
+      return { state: 'remote-enabled', label: 'Remote enabled' };
+    case 'local-available':
+    case 'no-provider':
+    default:
+      return { state: 'offline', label: 'Offline' };
   }
 }
 

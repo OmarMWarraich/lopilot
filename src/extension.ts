@@ -19,10 +19,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBarItem.name = 'Lopilot';
   statusBarItem.command = 'lopilot.openChat';
-  statusBarItem.text = '$(comment-discussion) Lopilot';
   statusBarItem.show();
 
   const updateStatusBar = () => {
+    const lifecycleState = providerManager.getLifecycleState();
+    const indicator = getStatusBarIndicator(lifecycleState);
+    statusBarItem.text = `${indicator.icon} Lopilot ${indicator.label}`;
     statusBarItem.tooltip = `Lopilot - ${providerManager.getStateDescription()}`;
   };
 
@@ -272,5 +274,20 @@ function validateHttpUrl(value: string): string | undefined {
     return undefined;
   } catch {
     return 'Enter a valid URL.';
+  }
+}
+
+function getStatusBarIndicator(lifecycleState: import('./provider/ProviderState').ProviderLifecycleState): { icon: string; label: string } {
+  switch (lifecycleState) {
+    case 'local-configured':
+      return { icon: '$(vm-active)', label: 'Local' };
+    case 'remote-configured-blocked':
+      return { icon: '$(shield)', label: 'Remote Blocked' };
+    case 'remote-enabled':
+      return { icon: '$(cloud)', label: 'Remote' };
+    case 'local-available':
+    case 'no-provider':
+    default:
+      return { icon: '$(circle-slash)', label: 'Offline' };
   }
 }
