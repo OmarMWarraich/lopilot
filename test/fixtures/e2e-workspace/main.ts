@@ -4,4 +4,4 @@ export function add(left: number, right: number): number {
 }
 
 declare const compute: number;
-export const pendingAnswer = compute
+export const pendingAnswer = compute;
