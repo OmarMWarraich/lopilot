@@ -16,6 +16,7 @@ The project is scaffolded around clear module boundaries so chat, inline complet
 - Explicit remote-provider opt-in before remote requests are allowed.
 - Production-ready local Ollama connector with `/api/chat` streaming, `/api/tags` model metadata, health checks, request timeouts, cancellation, and structured connector errors.
 - Provider readiness checks with capability discovery and graceful messages for unreachable local connectors or Ollama instances with no pulled models.
+- Clear local/offline/remote-blocked indicators in the status bar and chat UI, with prompt sending disabled while requests are blocked.
 - Model selection and local backend preferences via `Lopilot: Configure Local Backend`, `Lopilot: Select Model`, and VS Code settings.
 - Shared context pipeline for current file, active selection, neighboring files, repository signals, and recent conversation state.
 - Typed model-adapter client for completions, chat completions, embeddings, models, health, and provenance endpoints.
@@ -122,6 +123,12 @@ Lifecycle states:
 - `remote-enabled` — a remote provider is active after explicit user opt-in.
 
 Selecting a remote provider does not enable remote usage. If a blocked remote is selected while local providers are available, local setup remains the preferred path. Full transition details live in [PROVIDER_IMPLEMENTATION.md](PROVIDER_IMPLEMENTATION.md).
+
+UI indicators:
+
+- Status bar shows `Local`, `Offline`, `Remote Blocked`, or `Remote`.
+- Chat header mirrors the same connection state.
+- Chat prompt sending is disabled while offline or remote-blocked; remote usage remains blocked until explicit opt-in.
 
 ## Shared Context
 

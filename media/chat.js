@@ -6,7 +6,10 @@
   const messagesContainer = document.getElementById('messages');
   const composer = document.getElementById('composer');
   const promptInput = document.getElementById('prompt-input');
+  const composerHint = document.getElementById('composer-hint');
+  const sendButton = composer.querySelector('button[type="submit"]');
   const newSessionButton = document.getElementById('new-session');
+  const connectionIndicator = document.getElementById('connection-indicator');
   const includeFileInput = document.getElementById('include-file');
   const includeSelectionInput = document.getElementById('include-selection');
   const includeRepositoryInput = document.getElementById('include-repository');
@@ -25,7 +28,8 @@
       state: 'no-provider',
       stateDescription: 'No provider configured',
       canSendRequest: false,
-      activeProvider: null
+      activeProvider: null,
+      indicator: { state: 'offline', label: 'Offline' }
     },
     contextOptions: {
       includeCurrentFile: true,
@@ -142,9 +146,17 @@
   vscode.postMessage({ type: 'ready' });
 
   function render() {
+    renderConnectionIndicator();
     renderSessions();
     renderConversationMeta();
     renderMessages();
+    renderComposerState();
+  }
+
+  function renderConnectionIndicator() {
+    const indicator = getProviderIndicator(state.provider);
+    connectionIndicator.textContent = indicator.label;
+    connectionIndicator.className = `badge badge--${getConnectionBadgeClass(indicator.state)}`;
   }
 
   function renderSessions() {
@@ -211,6 +223,28 @@
     conversationMeta.append(title, meta, contextBadge, providerBadge);
   }
 
+  function renderComposerState() {
+    const blocked = !state.provider.canSendRequest;
+    promptInput.disabled = blocked;
+    sendButton.disabled = blocked;
+
+    if (!blocked) {
+      composerHint.textContent = 'Cmd/Ctrl+Enter sends the prompt.';
+      return;
+    }
+
+    const indicator = getProviderIndicator(state.provider);
+    switch (indicator.state) {
+      case 'remote-blocked':
+        composerHint.textContent = 'Remote usage is blocked until you run Lopilot: Enable Remote Providers.';
+        break;
+      case 'offline':
+      default:
+        composerHint.textContent = 'Offline. Configure a local backend or select a local provider to send prompts.';
+        break;
+    }
+  }
+
   function renderMessages() {
     messagesContainer.replaceChildren();
 
@@ -261,6 +295,36 @@
         return 'warning';
       default:
         return 'error';
+    }
+  }
+
+  function getConnectionBadgeClass(indicatorState) {
+    switch (indicatorState) {
+      case 'local':
+        return 'success';
+      case 'remote-enabled':
+        return 'accent';
+      case 'remote-blocked':
+        return 'warning';
+      default:
+        return 'error';
+    }
+  }
+
+  function getProviderIndicator(provider) {
+    if (provider?.indicator) {
+      return provider.indicator;
+    }
+
+    switch (provider?.state) {
+      case 'local-configured':
+        return { state: 'local', label: 'Local' };
+      case 'remote-enabled':
+        return { state: 'remote-enabled', label: 'Remote' };
+      case 'remote-configured-blocked':
+        return { state: 'remote-blocked', label: 'Remote Blocked' };
+      default:
+        return { state: 'offline', label: 'Offline' };
     }
   }
 
