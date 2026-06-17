@@ -514,6 +514,44 @@ export class ProviderManager {
     await this.saveConfig();
   }
 
+  /**
+   * Chooses a smaller fallback model from the provided model list.
+   * Returns the closest lower-footprint model when the active model appears too
+   * large for the current machine, or the smallest available model when the
+   * current selection is missing.
+   */
+  public chooseFallbackModel(models: ModelMetadata[], currentModelId: string | null): ModelMetadata | null {
+    if (models.length === 0) {
+      return null;
+    }
+
+    const orderedModels = [...models].sort(compareModelFootprint);
+    if (!currentModelId) {
+      return orderedModels[0] ?? null;
+    }
+
+    const currentModel = orderedModels.find((model) => model.id === currentModelId);
+    if (!currentModel) {
+      return orderedModels[0] ?? null;
+    }
+
+    const currentScore = scoreModelFootprint(currentModel);
+    const smallerCandidates = orderedModels.filter((model) => model.id !== currentModelId && scoreModelFootprint(model) < currentScore);
+    return smallerCandidates[smallerCandidates.length - 1] ?? null;
+  }
+
+  /**
+   * Returns true when a model request failed for a reason that usually benefits
+   * from retrying with a smaller local model.
+   */
+  public shouldFallbackToSmallerModel(error: unknown): boolean {
+    if (!isAdapterErrorWithCode(error)) {
+      return false;
+    }
+
+    return error.code === "out_of_memory" || error.code === "timeout";
+  }
+
   private upsertConfiguredOllamaProvider(baseUrl: string): ProviderEndpoint {
     const existing = this.config.configuredLocal.find((provider) => {
       return provider.type === "ollama" && normalizeBaseUrl(provider.baseUrl) === baseUrl;
@@ -556,6 +594,40 @@ function normalizeOptionalString(value: string | undefined): string | null {
 function hasConfiguredValue(configuration: vscode.WorkspaceConfiguration, key: string): boolean {
   const inspection = configuration.inspect(key);
   return inspection?.globalValue !== undefined || inspection?.workspaceValue !== undefined || inspection?.workspaceFolderValue !== undefined;
+}
+
+function compareModelFootprint(left: ModelMetadata, right: ModelMetadata): number {
+  const leftScore = scoreModelFootprint(left);
+  const rightScore = scoreModelFootprint(right);
+
+  if (leftScore !== rightScore) {
+    return leftScore - rightScore;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function scoreModelFootprint(model: ModelMetadata): number {
+  const sizeScore = typeof model.maxTokens === "number" ? model.maxTokens : Number.POSITIVE_INFINITY;
+  const quantizationScore = parseQuantizationScore(model.quantization);
+  return sizeScore * 100 + quantizationScore;
+}
+
+function parseQuantizationScore(quantization: string | null): number {
+  if (!quantization) {
+    return 999;
+  }
+
+  const match = quantization.match(/(?:^|[^0-9])([0-9]{1,2})(?:[^0-9]|$)/);
+  if (!match) {
+    return 999;
+  }
+
+  return Number(match[1]);
+}
+
+function isAdapterErrorWithCode(error: unknown): error is { code: string } {
+  return typeof error === "object" && error !== null && "code" in error && typeof (error as { code?: unknown }).code === "string";
 }
 
 function slugifyEndpoint(baseUrl: string): string {

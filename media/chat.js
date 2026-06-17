@@ -90,6 +90,11 @@
     }
 
     if (message && message.type === 'stream.start') {
+      const existing = messagesContainer.querySelector(`[data-message-id="${message.messageId}"]`);
+      if (existing) {
+        existing.remove();
+      }
+
       // Append an empty streaming assistant bubble
       const bubble = document.createElement('article');
       bubble.className = 'message message--assistant message--streaming';
