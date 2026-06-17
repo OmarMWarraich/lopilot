@@ -152,6 +152,19 @@ export class ProviderManager {
   }
 
   /**
+   * Returns every known provider endpoint across configured-local,
+   * discovered-local, and configured-remote sources, in resolution order
+   * (local-first). This is the single source of truth for provider lookups.
+   */
+  public getAllProviders(): ProviderEndpoint[] {
+    return [
+      ...this.config.configuredLocal,
+      ...this.config.discoveredLocal,
+      ...this.config.configuredRemote,
+    ];
+  }
+
+  /**
    * Returns the currently active provider endpoint, if any.
    */
   public getActiveProvider(): ProviderEndpoint | null {
@@ -159,14 +172,8 @@ export class ProviderManager {
       return null;
     }
 
-    const allProviders = [
-      ...this.config.configuredLocal,
-      ...this.config.discoveredLocal,
-      ...this.config.configuredRemote,
-    ];
-
     return (
-      allProviders.find((p) => p.id === this.config.activeProviderId) ?? null
+      this.getAllProviders().find((p) => p.id === this.config.activeProviderId) ?? null
     );
   }
 
@@ -362,13 +369,7 @@ export class ProviderManager {
    * Selecting a remote provider does not enable remote requests; the user must opt in separately.
    */
   public async setActiveProvider(providerId: string): Promise<boolean> {
-    const allProviders = [
-      ...this.config.configuredLocal,
-      ...this.config.discoveredLocal,
-      ...this.config.configuredRemote,
-    ];
-
-    const provider = allProviders.find((p) => p.id === providerId);
+    const provider = this.getAllProviders().find((p) => p.id === providerId);
 
     if (!provider) {
       return false;

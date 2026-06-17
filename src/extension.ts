@@ -97,12 +97,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void vscode.window.showInformationMessage(`Found ${discovered.length} local provider(s): ${discovered.map(p => p.name).join(', ')}`);
     }),
     vscode.commands.registerCommand('lopilot.setActiveProvider', async () => {
-      const config = providerManager.getConfig();
-      const allProviders = [
-        ...config.configuredLocal,
-        ...config.discoveredLocal,
-        ...config.configuredRemote
-      ];
+      const allProviders = providerManager.getAllProviders();
 
       if (allProviders.length === 0) {
         void vscode.window.showWarningMessage('No providers available. Discover or configure a provider first.');
