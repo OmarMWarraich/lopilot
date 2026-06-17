@@ -5,6 +5,9 @@ import { LopilotPanel } from './chat/LopilotPanel';
 import { SessionManager } from './chat/SessionManager';
 import { LopilotInlineCompletionProvider } from './inline';
 import { ProviderAvailability, ProviderManager } from './provider/ProviderManager';
+import { SharedContextPipeline } from './context';
+import { streamOllamaChat } from './adapter';
+import { getMockBaseUrl, getMockModels, isE2EMockMode } from './testing/mockRuntime';
 
 const LOPILOT_SETTINGS_SECTION = 'lopilot';
 
@@ -14,7 +17,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const providerManager = new ProviderManager(context.workspaceState);
   await providerManager.applyPreferences();
-  LopilotInlineCompletionProvider.register(context, providerManager);
+  if (isE2EMockMode()) {
+    await providerManager.applyPreferences({ force: true });
+    const mockModels = getMockModels();
+    if (mockModels.length > 0) {
+      await providerManager.setActiveModelId(mockModels[0].id);
+    }
+  }
+  const inlineCompletionProvider = LopilotInlineCompletionProvider.register(context, providerManager);
 
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBarItem.name = 'Lopilot';
@@ -244,9 +254,162 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     })
   );
+
+  if (isE2EMockMode()) {
+    context.subscriptions.push(
+      vscode.commands.registerCommand('lopilot.debug.getStateSnapshot', () => {
+        return {
+          provider: {
+            lifecycleState: providerManager.getLifecycleState(),
+            stateDescription: providerManager.getStateDescription(),
+            canSendRequest: providerManager.canSendRequest(),
+            activeProvider: providerManager.getActiveProvider(),
+            activeModelId: providerManager.getActiveModelId(),
+            mockBaseUrl: getMockBaseUrl()
+          },
+          chat: sessionManager.getViewModel()
+        };
+      }),
+      vscode.commands.registerCommand('lopilot.debug.sendPrompt', async (prompt: string, contextOptions?: DebugChatContextOptions) => {
+        await runDebugPromptFlow(sessionManager, providerManager, prompt, contextOptions);
+        return {
+          provider: {
+            lifecycleState: providerManager.getLifecycleState(),
+            canSendRequest: providerManager.canSendRequest(),
+            activeProvider: providerManager.getActiveProvider(),
+            activeModelId: providerManager.getActiveModelId()
+          },
+          chat: sessionManager.getViewModel()
+        };
+      }),
+      vscode.commands.registerCommand(
+        'lopilot.debug.requestInlineCompletions',
+        async (options?: { uri?: vscode.Uri | string; position?: vscode.Position | { line: number; character: number } }) => {
+          let editor = vscode.window.activeTextEditor;
+          if (options?.uri) {
+            if (!(options.uri instanceof vscode.Uri) && typeof options.uri !== 'string') {
+              return [];
+            }
+            const uri = options.uri instanceof vscode.Uri ? options.uri : vscode.Uri.parse(options.uri);
+            const document = await vscode.workspace.openTextDocument(uri);
+            editor = await vscode.window.showTextDocument(document);
+          }
+          if (!editor) {
+            return [];
+          }
+
+          const requestedPosition = options?.position;
+          const position = requestedPosition instanceof vscode.Position
+            ? requestedPosition
+            : requestedPosition
+              ? new vscode.Position(requestedPosition.line, requestedPosition.character)
+              : editor.selection.active;
+
+          editor.selection = new vscode.Selection(position, position);
+
+          const cts = new vscode.CancellationTokenSource();
+          try {
+            const completions = await inlineCompletionProvider.provideInlineCompletionItems(
+              editor.document,
+              position,
+              { triggerKind: vscode.InlineCompletionTriggerKind.Automatic, selectedCompletionInfo: undefined },
+              cts.token
+            );
+
+            return completions?.items ?? [];
+          } finally {
+            cts.dispose();
+          }
+        })
+    );
+  }
 }
 
 export function deactivate(): void {}
+
+interface DebugChatContextOptions {
+  includeCurrentFile?: boolean;
+  includeSelection?: boolean;
+  includeRepositoryContext?: boolean;
+}
+
+async function runDebugPromptFlow(
+  sessionManager: SessionManager,
+  providerManager: ProviderManager,
+  prompt: string,
+  contextOptions?: DebugChatContextOptions
+): Promise<void> {
+  const trimmedPrompt = prompt.trim();
+  if (!trimmedPrompt) {
+    return;
+  }
+
+  if (!providerManager.canSendRequest()) {
+    await sessionManager.appendAssistantMessage('Mock provider is not ready.');
+    return;
+  }
+
+  const provider = providerManager.getActiveProvider();
+  if (!provider || provider.type !== 'ollama') {
+    await sessionManager.appendAssistantMessage('The active provider does not support streaming yet.');
+    return;
+  }
+
+  const readiness = await providerManager.getActiveProviderReadiness();
+  if (readiness.availability !== 'ready') {
+    await sessionManager.appendAssistantMessage(formatProviderReadinessFailure(readiness.availability, readiness.detail));
+    return;
+  }
+
+  await sessionManager.appendUserMessage(trimmedPrompt);
+
+  let modelId = providerManager.getActiveModelId();
+  if (!modelId || !readiness.models.some((model) => model.id === modelId)) {
+    modelId = readiness.models[0]?.id ?? getMockModels()[0]?.id ?? null;
+    if (modelId) {
+      await providerManager.setActiveModelId(modelId);
+    }
+  }
+
+  if (!modelId) {
+    await sessionManager.appendAssistantMessage('No model available for mock prompt flow.');
+    return;
+  }
+
+  const activeSession = sessionManager.getActiveSession();
+  const contextPipeline = new SharedContextPipeline();
+  const contextBundle = await contextPipeline.build({
+    conversation: activeSession?.messages ?? [],
+    includeCurrentFile: contextOptions?.includeCurrentFile ?? true,
+    includeSelection: contextOptions?.includeSelection ?? true,
+    includeRepositoryContext: contextOptions?.includeRepositoryContext ?? true,
+    includeConversationState: false
+  });
+
+  const history = (sessionManager.getActiveSession()?.messages ?? []).map((message) => ({
+    role: message.role as 'user' | 'assistant',
+    content: message.content
+  }));
+
+  const { messageId } = await sessionManager.beginAssistantStream();
+
+  try {
+    const response = await streamOllamaChat({
+      baseUrl: provider.baseUrl,
+      model: modelId,
+      messages: [
+        { role: 'system', content: contextPipeline.formatSystemMessage(contextBundle) },
+        ...history
+      ],
+      onDelta: () => undefined
+    });
+
+    await sessionManager.finalizeStreamingMessage(messageId, response);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    await sessionManager.finalizeStreamingMessage(messageId, `Error: ${errMsg}`);
+  }
+}
 
 function formatProviderReadinessFailure(availability: ProviderAvailability, detail: string): string {
   switch (availability) {
