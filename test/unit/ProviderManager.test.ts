@@ -93,6 +93,59 @@ describe('ProviderManager readiness', () => {
     expect(config.activeModelId).toBe('llama3.2:latest');
     expect(config.lifecycleState).toBe('local-configured');
   });
+
+  it('chooses a smaller fallback model when the active model is resource constrained', () => {
+    const manager = createManager();
+
+    const fallback = manager.chooseFallbackModel([
+      {
+        id: 'small-model',
+        displayName: 'small-model',
+        quantization: 'Q4_K_M',
+        device: null,
+        maxTokens: 4096,
+        contextWindow: null,
+        license: null
+      },
+      {
+        id: 'large-model',
+        displayName: 'large-model',
+        quantization: 'Q5_K_M',
+        device: null,
+        maxTokens: 8192,
+        contextWindow: null,
+        license: null
+      }
+    ], 'large-model');
+
+    expect(fallback?.id).toBe('small-model');
+  });
+
+  it('does not fallback when the active model is already the smallest option', () => {
+    const manager = createManager();
+
+    const fallback = manager.chooseFallbackModel([
+      {
+        id: 'small-model',
+        displayName: 'small-model',
+        quantization: 'Q4_K_M',
+        device: null,
+        maxTokens: 4096,
+        contextWindow: null,
+        license: null
+      }
+    ], 'small-model');
+
+    expect(fallback).toBeNull();
+  });
+
+  it('recognizes out-of-memory and timeout errors as fallback-worthy', () => {
+    const manager = createManager();
+
+    expect(manager.shouldFallbackToSmallerModel({ code: 'out_of_memory' })).toBe(true);
+    expect(manager.shouldFallbackToSmallerModel({ code: 'timeout' })).toBe(true);
+    expect(manager.shouldFallbackToSmallerModel({ code: 'connector_unavailable' })).toBe(false);
+  });
 });
 
 function createManager(overrides: Record<string, unknown> = {}): ProviderManager {

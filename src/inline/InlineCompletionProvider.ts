@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { streamOllamaChat, OllamaChatMessage } from '../adapter';
+import type { ModelMetadata } from '../adapter';
 import { SharedContextPipeline } from '../context';
 import { ProviderManager } from '../provider/ProviderManager';
 
@@ -161,11 +162,13 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
         strategy: CANDIDATE_STRATEGIES[0]
       });
 
-      const completion = await streamOllamaChat({
+      const completion = await this.streamWithFallback({
         baseUrl: provider.baseUrl,
-        model: modelId,
+        modelId,
+        models,
         messages,
         signal: abortController.signal,
+        run,
         onDelta: (delta: string) => {
           accumulated += delta;
           this.updatePartialPreview(run, sanitizeInlineCompletion(accumulated));
@@ -181,7 +184,8 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
         return undefined;
       }
 
-      const candidates = await this.buildCompletionCandidates(provider.baseUrl, modelId, promptContext, insertText, abortController.signal);
+      modelId = this.providerManager.getActiveModelId() ?? modelId;
+      const candidates = await this.buildCompletionCandidates(provider.baseUrl, modelId, models, promptContext, insertText, abortController.signal, run);
       if (token.isCancellationRequested || this.activeRun?.id !== run.id || candidates.length === 0) {
         return undefined;
       }
@@ -370,9 +374,11 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
   private async buildCompletionCandidates(
     baseUrl: string,
     modelId: string,
+    models: ModelMetadata[],
     context: InlineCompletionPromptContext,
     primaryCandidate: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    run: ActiveInlineRun
   ): Promise<string[]> {
     const candidates = [primaryCandidate];
 
@@ -381,15 +387,17 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
         break;
       }
 
-      const completion = await streamOllamaChat({
+      const completion = await this.streamWithFallback({
         baseUrl,
-        model: modelId,
+        modelId,
+        models,
         messages: buildInlineCompletionMessages(context, {
           candidateIndex: index + 1,
           totalCandidates: MAX_INLINE_CANDIDATES,
           strategy: CANDIDATE_STRATEGIES[index]
         }),
         signal,
+        run,
         onDelta: () => undefined
       });
       const candidate = sanitizeInlineCompletion(completion);
@@ -491,6 +499,45 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
     this.candidateSession = null;
     this.clearPartialPreview();
     this.setInlineCandidateContext(false);
+  }
+
+  private async streamWithFallback(options: {
+    baseUrl: string;
+    modelId: string;
+    models: ModelMetadata[];
+    messages: OllamaChatMessage[];
+    signal: AbortSignal;
+    run: ActiveInlineRun;
+    onDelta: (delta: string) => void;
+    onRetry?: () => void;
+  }): Promise<string> {
+    let attemptModelId = options.modelId;
+
+    while (true) {
+      try {
+        return await streamOllamaChat({
+          baseUrl: options.baseUrl,
+          model: attemptModelId,
+          messages: options.messages,
+          signal: options.signal,
+          onDelta: options.onDelta
+        });
+      } catch (error) {
+        if (!this.providerManager.shouldFallbackToSmallerModel(error) || options.signal.aborted || this.activeRun?.id !== options.run.id) {
+          throw error;
+        }
+
+        const fallbackModel = this.providerManager.chooseFallbackModel(options.models, attemptModelId);
+        if (!fallbackModel || fallbackModel.id === attemptModelId) {
+          throw error;
+        }
+
+        attemptModelId = fallbackModel.id;
+        await this.providerManager.setActiveModelId(attemptModelId);
+        this.clearPartialPreview();
+        options.onRetry?.();
+      }
+    }
   }
 
   private setInlineCandidateContext(visible: boolean): void {

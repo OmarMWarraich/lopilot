@@ -187,22 +187,42 @@ export class LopilotPanel {
 
             // Create a streaming placeholder and signal start to the webview
             const { messageId } = await this.sessionManager.beginAssistantStream();
-            await this.panel.webview.postMessage({
-              type: 'stream.start',
-              messageId,
-              contextSummary: summarizeContextBundle(contextBundle)
-            });
-
+            const streamContextSummary = summarizeContextBundle(contextBundle);
             let accumulated = '';
+            let attemptModelId = modelId;
+
             try {
-              accumulated = await streamOllamaChat({
-                baseUrl: provider.baseUrl,
-                model: modelId,
-                messages,
-                onDelta: (delta: string) => {
-                  void this.panel.webview.postMessage({ type: 'stream.delta', messageId, delta });
-                },
-              });
+              while (true) {
+                await this.panel.webview.postMessage({
+                  type: 'stream.start',
+                  messageId,
+                  contextSummary: streamContextSummary
+                });
+
+                try {
+                  accumulated = await streamOllamaChat({
+                    baseUrl: provider.baseUrl,
+                    model: attemptModelId,
+                    messages,
+                    onDelta: (delta: string) => {
+                      void this.panel.webview.postMessage({ type: 'stream.delta', messageId, delta });
+                    },
+                  });
+                  break;
+                } catch (error) {
+                  if (!this.providerManager.shouldFallbackToSmallerModel(error)) {
+                    throw error;
+                  }
+
+                  const fallbackModel = this.providerManager.chooseFallbackModel(readiness.models, attemptModelId);
+                  if (!fallbackModel || fallbackModel.id === attemptModelId) {
+                    throw error;
+                  }
+
+                  attemptModelId = fallbackModel.id;
+                  await this.providerManager.setActiveModelId(attemptModelId);
+                }
+              }
             } catch (err) {
               const errMsg = err instanceof Error ? err.message : String(err);
               await this.panel.webview.postMessage({ type: 'stream.error', messageId, error: errMsg });
