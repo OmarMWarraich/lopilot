@@ -282,26 +282,42 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           chat: sessionManager.getViewModel()
         };
       }),
-      vscode.commands.registerCommand('lopilot.debug.requestInlineCompletions', async () => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-          return [];
-        }
+      vscode.commands.registerCommand(
+        'lopilot.debug.requestInlineCompletions',
+        async (options?: { uri?: vscode.Uri | string; position?: vscode.Position | { line: number; character: number } }) => {
+          let editor = vscode.window.activeTextEditor;
+          if (options?.uri) {
+            const uri = options.uri instanceof vscode.Uri ? options.uri : vscode.Uri.parse(options.uri);
+            const document = await vscode.workspace.openTextDocument(uri);
+            editor = await vscode.window.showTextDocument(document);
+          }
+          if (!editor) {
+            return [];
+          }
 
-        const cts = new vscode.CancellationTokenSource();
-        try {
-          const completions = await inlineCompletionProvider.provideInlineCompletionItems(
-            editor.document,
-            editor.selection.active,
-            { triggerKind: vscode.InlineCompletionTriggerKind.Automatic, selectedCompletionInfo: undefined },
-            cts.token
-          );
+          const requestedPosition = options?.position;
+          const position = requestedPosition instanceof vscode.Position
+            ? requestedPosition
+            : requestedPosition
+              ? new vscode.Position(requestedPosition.line, requestedPosition.character)
+              : editor.selection.active;
 
-          return completions?.items ?? [];
-        } finally {
-          cts.dispose();
-        }
-      })
+          editor.selection = new vscode.Selection(position, position);
+
+          const cts = new vscode.CancellationTokenSource();
+          try {
+            const completions = await inlineCompletionProvider.provideInlineCompletionItems(
+              editor.document,
+              position,
+              { triggerKind: vscode.InlineCompletionTriggerKind.Automatic, selectedCompletionInfo: undefined },
+              cts.token
+            );
+
+            return completions?.items ?? [];
+          } finally {
+            cts.dispose();
+          }
+        })
     );
   }
 }
