@@ -184,6 +184,7 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
         return undefined;
       }
 
+      modelId = this.providerManager.getActiveModelId() ?? modelId;
       const candidates = await this.buildCompletionCandidates(provider.baseUrl, modelId, models, promptContext, insertText, abortController.signal, run);
       if (token.isCancellationRequested || this.activeRun?.id !== run.id || candidates.length === 0) {
         return undefined;
@@ -508,6 +509,7 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
     signal: AbortSignal;
     run: ActiveInlineRun;
     onDelta: (delta: string) => void;
+    onRetry?: () => void;
   }): Promise<string> {
     let attemptModelId = options.modelId;
 
@@ -533,7 +535,7 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
         attemptModelId = fallbackModel.id;
         await this.providerManager.setActiveModelId(attemptModelId);
         this.clearPartialPreview();
-      }
+        options.onRetry?.();
     }
   }
 
