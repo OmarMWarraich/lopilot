@@ -16,7 +16,7 @@ The project is scaffolded around clear module boundaries so chat, inline complet
 - Explicit remote-provider opt-in before remote requests are allowed.
 - Production-ready local Ollama connector with `/api/chat` streaming, `/api/tags` model metadata, health checks, request timeouts, cancellation, and structured connector errors.
 - Provider readiness checks with capability discovery and graceful messages for unreachable local connectors or Ollama instances with no pulled models.
-- Model selection for active Ollama providers via `Lopilot: Select Model`.
+- Model selection and local backend preferences via `Lopilot: Configure Local Backend`, `Lopilot: Select Model`, and VS Code settings.
 - Shared context pipeline for current file, active selection, neighboring files, repository signals, and recent conversation state.
 - Typed model-adapter client for completions, chat completions, embeddings, models, health, and provenance endpoints.
 - Sandbox runner abstraction for tests and future agent actions, including approval checkpoints before repository mutations.
@@ -65,6 +65,7 @@ Available commands:
 - `Lopilot: Ask About Selection` — opens chat with the current editor selection preloaded.
 - `Lopilot: Discover Local Providers` — scans standard local model server ports.
 - `Lopilot: Select Provider` — selects an available local or remote provider.
+- `Lopilot: Configure Local Backend` — chooses the local backend, stores its base URL, and optionally sets the default model.
 - `Lopilot: Enable Remote Providers` — explicitly enables remote requests after user confirmation.
 - `Lopilot: Select Model` — chooses a model from the active provider, currently Ollama only.
 - `Lopilot: Cancel Inline Completion` — cancels the active inline completion stream and clears partial preview text.
@@ -96,11 +97,17 @@ ollama pull <model>
 Then run:
 
 1. `Lopilot: Discover Local Providers`.
-2. `Lopilot: Select Provider` and choose the discovered Ollama endpoint.
-3. `Lopilot: Select Model` and choose an installed model.
+2. `Lopilot: Configure Local Backend` and choose Ollama, or use `Lopilot: Select Provider` and choose the discovered Ollama endpoint.
+3. `Lopilot: Select Model` and choose an installed model if you did not choose one while configuring the backend.
 4. `Lopilot: Open Chat` and send a prompt.
 
 When no model is selected, Lopilot falls back to the first available model reported by Ollama. If the stored model id is stale, it is replaced with an available model before streaming. If Ollama is reachable but has no pulled models, chat and model selection show a specific `ollama pull <model>` prompt instead of failing generically.
+
+Workspace settings for local defaults:
+
+- `lopilot.localBackend` — preferred local backend. The MVP supports `ollama`.
+- `lopilot.ollamaBaseUrl` — local Ollama server URL, defaulting to `http://localhost:11434`.
+- `lopilot.defaultModel` — preferred model id. Leave blank to use the first available model.
 
 ## Local-First Provider Model
 

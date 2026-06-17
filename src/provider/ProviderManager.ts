@@ -28,6 +28,15 @@ import {
 } from "../adapter";
 
 const STORAGE_KEY = "lopilot.provider.config.v1";
+const SETTINGS_SECTION = "lopilot";
+
+export type LocalBackendPreference = "ollama";
+
+export interface ProviderPreferences {
+  localBackend: LocalBackendPreference;
+  ollamaBaseUrl: string;
+  defaultModel: string | null;
+}
 
 export type ProviderAvailability =
   | "ready"
@@ -77,7 +86,12 @@ export class ProviderManager {
     const persisted = this.storage.get<Partial<ProviderConfig>>(STORAGE_KEY);
 
     if (!persisted) {
-      return INITIAL_PROVIDER_CONFIG;
+      return {
+        ...INITIAL_PROVIDER_CONFIG,
+        discoveredLocal: [],
+        configuredLocal: [],
+        configuredRemote: [],
+      };
     }
 
     const config: ProviderConfig = {
@@ -161,6 +175,43 @@ export class ProviderManager {
    */
   public canSendRequest(): boolean {
     return canSendRequest(this.config);
+  }
+
+  public getPreferences(): ProviderPreferences {
+    const configuration = vscode.workspace.getConfiguration(SETTINGS_SECTION);
+    return {
+      localBackend: normalizeLocalBackend(configuration.get<string>("localBackend")),
+      ollamaBaseUrl: normalizeBaseUrl(configuration.get<string>("ollamaBaseUrl") ?? "http://localhost:11434"),
+      defaultModel: normalizeOptionalString(configuration.get<string>("defaultModel")),
+    };
+  }
+
+  public hasExplicitPreferences(): boolean {
+    const configuration = vscode.workspace.getConfiguration(SETTINGS_SECTION);
+    return hasConfiguredValue(configuration, "localBackend") || hasConfiguredValue(configuration, "ollamaBaseUrl") || hasConfiguredValue(configuration, "defaultModel");
+  }
+
+  public async applyPreferences(options: { force?: boolean } = {}): Promise<ProviderEndpoint | null> {
+    if (!options.force && !this.hasExplicitPreferences()) {
+      return this.getActiveProvider();
+    }
+
+    const configuration = vscode.workspace.getConfiguration(SETTINGS_SECTION);
+    const preferences = this.getPreferences();
+    if (preferences.localBackend !== "ollama") {
+      return this.getActiveProvider();
+    }
+
+    const endpoint = this.upsertConfiguredOllamaProvider(preferences.ollamaBaseUrl);
+    this.config.activeProviderId = endpoint.id;
+
+    if (hasConfiguredValue(configuration, "defaultModel")) {
+      this.config.activeModelId = preferences.defaultModel;
+    }
+
+    this.config.lifecycleState = deriveProviderLifecycleState(this.config);
+    await this.saveConfig();
+    return endpoint;
   }
 
   public async getActiveProviderReadiness(): Promise<ProviderReadiness> {
@@ -462,6 +513,53 @@ export class ProviderManager {
     this.config.activeModelId = modelId;
     await this.saveConfig();
   }
+
+  private upsertConfiguredOllamaProvider(baseUrl: string): ProviderEndpoint {
+    const existing = this.config.configuredLocal.find((provider) => {
+      return provider.type === "ollama" && normalizeBaseUrl(provider.baseUrl) === baseUrl;
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const endpoint: ProviderEndpoint = {
+      id: `ollama-configured-${slugifyEndpoint(baseUrl)}`,
+      name: "Ollama (configured)",
+      type: "ollama",
+      baseUrl,
+      isDiscovered: false,
+      addedAt: new Date().toISOString(),
+    };
+
+    this.config.configuredLocal = [
+      ...this.config.configuredLocal.filter((provider) => provider.id !== endpoint.id),
+      endpoint,
+    ];
+    return endpoint;
+  }
+}
+
+function normalizeLocalBackend(value: string | undefined): LocalBackendPreference {
+  return value === "ollama" ? value : "ollama";
+}
+
+function normalizeBaseUrl(value: string): string {
+  return value.trim().replace(/\/+$/, "") || "http://localhost:11434";
+}
+
+function normalizeOptionalString(value: string | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function hasConfiguredValue(configuration: vscode.WorkspaceConfiguration, key: string): boolean {
+  const inspection = configuration.inspect(key);
+  return inspection?.globalValue !== undefined || inspection?.workspaceValue !== undefined || inspection?.workspaceFolderValue !== undefined;
+}
+
+function slugifyEndpoint(baseUrl: string): string {
+  return baseUrl.replace(/^https?:\/\//, "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
 }
 
 function toProviderReadiness(provider: ProviderEndpoint, discovery: OllamaCapabilityDiscovery): ProviderReadiness {

@@ -49,6 +49,11 @@
         "category": "Lopilot"
       },
       {
+        "command": "lopilot.configureLocalBackend",
+        "title": "Configure Local Backend",
+        "category": "Lopilot"
+      },
+      {
         "command": "lopilot.cancelInlineCompletion",
         "title": "Cancel Inline Completion",
         "category": "Lopilot"
@@ -79,6 +84,29 @@
         "category": "Lopilot"
       }
     ],
+    "configuration": {
+      "title": "Lopilot",
+      "properties": {
+        "lopilot.localBackend": {
+          "type": "string",
+          "enum": [
+            "ollama"
+          ],
+          "default": "ollama",
+          "description": "Preferred local model backend for Lopilot requests. Ollama is the production-ready local backend in the current MVP."
+        },
+        "lopilot.ollamaBaseUrl": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Base URL for the local Ollama server."
+        },
+        "lopilot.defaultModel": {
+          "type": "string",
+          "default": "",
+          "description": "Default local model id to use when the selected backend reports it as available. Leave blank to use the first available local model."
+        }
+      }
+    },
     "menus": {
       "commandPalette": [
         {
