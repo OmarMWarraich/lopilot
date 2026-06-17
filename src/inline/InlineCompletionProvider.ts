@@ -536,6 +536,7 @@ export class LopilotInlineCompletionProvider implements vscode.InlineCompletionI
         await this.providerManager.setActiveModelId(attemptModelId);
         this.clearPartialPreview();
         options.onRetry?.();
+      }
     }
   }
 
