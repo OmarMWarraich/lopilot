@@ -287,6 +287,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         async (options?: { uri?: vscode.Uri | string; position?: vscode.Position | { line: number; character: number } }) => {
           let editor = vscode.window.activeTextEditor;
           if (options?.uri) {
+            if (!(options.uri instanceof vscode.Uri) && typeof options.uri !== 'string') {
+              return [];
+            }
             const uri = options.uri instanceof vscode.Uri ? options.uri : vscode.Uri.parse(options.uri);
             const document = await vscode.workspace.openTextDocument(uri);
             editor = await vscode.window.showTextDocument(document);
