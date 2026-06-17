@@ -288,14 +288,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return [];
         }
 
-        const completions = await inlineCompletionProvider.provideInlineCompletionItems(
-          editor.document,
-          editor.selection.active,
-          { triggerKind: vscode.InlineCompletionTriggerKind.Automatic, selectedCompletionInfo: undefined },
-          new vscode.CancellationTokenSource().token
-        );
+        const cts = new vscode.CancellationTokenSource();
+        try {
+          const completions = await inlineCompletionProvider.provideInlineCompletionItems(
+            editor.document,
+            editor.selection.active,
+            { triggerKind: vscode.InlineCompletionTriggerKind.Automatic, selectedCompletionInfo: undefined },
+            cts.token
+          );
 
-        return completions?.items ?? [];
+          return completions?.items ?? [];
+        } finally {
+          cts.dispose();
+        }
       })
     );
   }
@@ -368,17 +373,23 @@ async function runDebugPromptFlow(
   }));
 
   const { messageId } = await sessionManager.beginAssistantStream();
-  const response = await streamOllamaChat({
-    baseUrl: provider.baseUrl,
-    model: modelId,
-    messages: [
-      { role: 'system', content: contextPipeline.formatSystemMessage(contextBundle) },
-      ...history
-    ],
-    onDelta: () => undefined
-  });
 
-  await sessionManager.finalizeStreamingMessage(messageId, response);
+  try {
+    const response = await streamOllamaChat({
+      baseUrl: provider.baseUrl,
+      model: modelId,
+      messages: [
+        { role: 'system', content: contextPipeline.formatSystemMessage(contextBundle) },
+        ...history
+      ],
+      onDelta: () => undefined
+    });
+
+    await sessionManager.finalizeStreamingMessage(messageId, response);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    await sessionManager.finalizeStreamingMessage(messageId, `Error: ${errMsg}`);
+  }
 }
 
 function formatProviderReadinessFailure(availability: ProviderAvailability, detail: string): string {

@@ -37,6 +37,10 @@ suite('Lopilot E2E smoke suite', () => {
   });
 
   test('captures selection into a session via ask-about-selection', async () => {
+    const extension = vscode.extensions.getExtension('lopilot.lopilot');
+    assert.ok(extension);
+    await extension.activate();
+
     const document = await vscode.workspace.openTextDocument(vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, 'main.ts'));
     const editor = await vscode.window.showTextDocument(document);
     const start = document.getText().indexOf('left + right');
@@ -55,6 +59,10 @@ suite('Lopilot E2E smoke suite', () => {
   });
 
   test('runs a mocked chat prompt flow end to end', async () => {
+    const extension = vscode.extensions.getExtension('lopilot.lopilot');
+    assert.ok(extension);
+    await extension.activate();
+
     const result = await vscode.commands.executeCommand('lopilot.debug.sendPrompt', 'Summarize the current file briefly.');
 
     const messages = result.chat.activeSession.messages;
@@ -65,6 +73,10 @@ suite('Lopilot E2E smoke suite', () => {
   });
 
   test('returns mocked inline completions through the registered provider', async () => {
+    const extension = vscode.extensions.getExtension('lopilot.lopilot');
+    assert.ok(extension);
+    await extension.activate();
+
     const document = await vscode.workspace.openTextDocument(vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, 'main.ts'));
     const editor = await vscode.window.showTextDocument(document);
     const completionLine = document.lineAt(document.lineCount - 1);
